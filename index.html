@@ -273,24 +273,51 @@ async function _loadFromNotion() {
 
 // Notion에 DB 저장
 async function _saveToNotion(hsMap, engMap) {
-  const res = await fetch(API.write, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hs: hsMap, eng: engMap })
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `저장 실패: ${res.status}`);
-  }
-  return await res.json();
-}
-async function saveInChunks(hsMap, engMap) {
   const CHUNK_SIZE = 20;
 
   const hsEntries = Object.entries(hsMap);
   const engEntries = Object.entries(engMap);
 
-  let allConflicts = [];
+  let hsAdded = 0;
+  let engAdded = 0;
+  let conflicts = [];
+
+  async function sendChunk(hsChunk, engChunk) {
+    const res = await fetch(API.write, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hs: Object.fromEntries(hsChunk),
+        eng: Object.fromEntries(engChunk)
+      })
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      console.error('❌ Notion 저장 실패:', result);
+      throw new Error(result.error || 'Notion 저장 실패');
+    }
+
+    hsAdded += result.hsAdded || 0;
+    engAdded += result.engAdded || 0;
+    conflicts.push(...(result.conflicts || []));
+  }
+
+  // HS chunk 처리
+  for (let i = 0; i < hsEntries.length; i += CHUNK_SIZE) {
+    const chunk = hsEntries.slice(i, i + CHUNK_SIZE);
+    await sendChunk(chunk, []);
+  }
+
+  // ENG chunk 처리
+  for (let i = 0; i < engEntries.length; i += CHUNK_SIZE) {
+    const chunk = engEntries.slice(i, i + CHUNK_SIZE);
+    await sendChunk([], chunk);
+  }
+
+  return { hsAdded, engAdded, conflicts };
+}
 
   // HS 저장
   for (let i = 0; i < hsEntries.length; i += CHUNK_SIZE) {
