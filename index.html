@@ -820,6 +820,7 @@ document.getElementById('refInput').addEventListener('change', async e => {
 setupDrop('refDrop', 'refInput', async f => { await processRef(f); });
 
 async function processRef(files) {
+  console.log('🔥 processRef 실행됨');
   const { colHS, colENG, colSET, colSETCOLOR, colITEM, colITEMCOLOR, startRow } = cfg();
   // hs: { '세트코드|세트색상': { hs, setCode, setColor } }
   // eng: { '단품코드|단품색상': { eng, itemCode, itemColor } }
@@ -836,7 +837,13 @@ async function processRef(files) {
       for (const sn of wb.SheetNames) {
         const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, defval:null });
         for (let r = startRow; r < data.length; r++) {
-          const row = data[r];
+  const row = data[r];
+
+  if (r < startRow + 3) {
+    console.log('row:', row);
+    console.log('setCode:', row[colSET]);
+    console.log('hs:', row[colHS]);
+  }
           if (r === startRow) {
   console.log('헤더:', data[0]);
   console.log('컬럼 인덱스 매핑:', data[0].map((h, i) => `${i}: ${h}`));
