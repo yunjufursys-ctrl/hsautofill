@@ -1027,6 +1027,12 @@ async function runRawConvert() {
             log2('ok', `  행${ri} HS: ${sc}|${scC} → ${hsDB[hsKey]}`);
           } else missingHS.add(`${sc}|${scC}`);
         }
+        console.log({
+  key: hsKey,
+  hsValue: hsDB[hsKey],
+  setCode: sc,
+  setColor: scC
+});
         // 품명(영문): 단품코드 + 단품색상 복합키
         if (ea && ic && icC) {
           const engNow = readCell(inner, ea, ss.arr);
