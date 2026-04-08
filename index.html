@@ -274,13 +274,10 @@ async function _loadFromNotion() {
 // Notion에 DB 저장
 async function _saveToNotion(hsMap, engMap) {
   const CHUNK_SIZE = 20;
-
   const hsEntries = Object.entries(hsMap);
   const engEntries = Object.entries(engMap);
-
-  let hsAdded = 0;
-  let engAdded = 0;
-  let conflicts = [];
+  let hsAdded = 0, engAdded = 0;
+  const conflicts = [];
 
   async function sendChunk(hsChunk, engChunk) {
     const res = await fetch(API.write, {
@@ -291,46 +288,23 @@ async function _saveToNotion(hsMap, engMap) {
         eng: Object.fromEntries(engChunk)
       })
     });
-
     const result = await res.json();
-
-    if (!res.ok) {
-      console.error('❌ Notion 저장 실패:', result);
-      throw new Error(result.error || 'Notion 저장 실패');
-    }
-
+    if (!res.ok) throw new Error(result.error || 'Notion 저장 실패');
     hsAdded += result.hsAdded || 0;
     engAdded += result.engAdded || 0;
     conflicts.push(...(result.conflicts || []));
   }
 
-  // HS 저장
   for (let i = 0; i < hsEntries.length; i += CHUNK_SIZE) {
     await sendChunk(hsEntries.slice(i, i + CHUNK_SIZE), []);
   }
-
-  // ENG 저장
   for (let i = 0; i < engEntries.length; i += CHUNK_SIZE) {
     await sendChunk([], engEntries.slice(i, i + CHUNK_SIZE));
   }
 
   return { hsAdded, engAdded, conflicts };
 }
-  // HS chunk 처리
-  for (let i = 0; i < hsEntries.length; i += CHUNK_SIZE) {
-    const chunk = hsEntries.slice(i, i + CHUNK_SIZE);
-    await sendChunk(chunk, []);
-  }
 
-  // ENG chunk 처리
-  for (let i = 0; i < engEntries.length; i += CHUNK_SIZE) {
-    const chunk = engEntries.slice(i, i + CHUNK_SIZE);
-    await sendChunk([], chunk);
-  }
-
-  return { hsAdded, engAdded, conflicts };
-}
-  
 // 로컬 캐시 (오프라인 fallback)
 function _loadLocalCache() {
   try {
@@ -834,12 +808,12 @@ document.getElementById('refInput').addEventListener('change', async e => {
   await processRef([...e.target.files]); e.target.value = '';
 });
 setupDrop('refDrop', 'refInput', async f => { await processRef(f); });
+
 async function processRef(files) {
   const { colHS, colENG, colSET, colSETCOLOR, colITEM, colITEMCOLOR, startRow } = cfg();
-
-  const newHS = {};
-  const newENG = {};
-
+  // hs: { '세트코드|세트색상': { hs, setCode, setColor } }
+  // eng: { '단품코드|단품색상': { eng, itemCode, itemColor } }
+  const newHS = {}, newENG = {};
   const el = document.getElementById('refStatus');
   el.className = 'log-box log-info';
   el.textContent = '파일 읽는 중...';
@@ -849,14 +823,11 @@ async function processRef(files) {
     try {
       const buf = await file.arrayBuffer();
       const wb  = XLSX.read(buf, { type:'array', cellFormula:false });
-
       for (const sn of wb.SheetNames) {
         const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, defval:null });
-
         for (let r = startRow; r < data.length; r++) {
           const row = data[r];
           if (!row || row.every(c => c == null)) continue;
-
           const setCode   = cl(row[colSET]);
           const setColor  = cl(row[colSETCOLOR]);
           const itemCode  = cl(row[colITEM]);
@@ -864,17 +835,16 @@ async function processRef(files) {
           const hv = row[colHS];
           const ev = cl(row[colENG]);
 
-          // HS
+          // HS번호: 세트코드 + 세트색상 복합키
           if (setCode && setColor && hv != null) {
             const h = String(hv).replace(/\D/g,'');
             const key = makeMapKey(setCode, setColor);
-            if (h && !newHS[key]) newHS[key] = { hs: h };
+            if (h && !newHS[key]) newHS[key] = { hs: h, setCode, setColor };
           }
-
-          // ENG
+          // 품명(영문): 단품코드 + 단품색상 복합키
           if (itemCode && itemColor && ev && !isF(ev)) {
             const key = makeMapKey(itemCode, itemColor);
-            if (!newENG[key]) newENG[key] = { eng: ev };
+            if (!newENG[key]) newENG[key] = { eng: ev, itemCode, itemColor };
           }
         }
       }
@@ -887,39 +857,35 @@ async function processRef(files) {
 
   const hsCount  = Object.keys(newHS).length;
   const engCount = Object.keys(newENG).length;
+  el.textContent = `파일 파싱 완료 — HS ${hsCount}건, 품명 ${engCount}건. Notion에 저장 중...`;
 
-  el.textContent = `파싱 완료 — HS ${hsCount}건 / 품명 ${engCount}건 → 저장 중...`;
+  // 로컬 캐시 업데이트 (복합키 → 값만 저장)
+  const hsCacheUpdate = {}, engCacheUpdate = {};
+  Object.entries(newHS).forEach(([k,v])=>{ hsCacheUpdate[k]=v.hs; });
+  Object.entries(newENG).forEach(([k,v])=>{ engCacheUpdate[k]=v.eng; });
+  await idbPutMany(IDB.hs,  hsCacheUpdate);
+  await idbPutMany(IDB.eng, engCacheUpdate);
 
-  // 로컬 캐시
-  const hsCache = {};
-  const engCache = {};
-  Object.entries(newHS).forEach(([k,v]) => hsCache[k] = v.hs);
-  Object.entries(newENG).forEach(([k,v]) => engCache[k] = v.eng);
-
-  await idbPutMany(IDB.hs, hsCache);
-  await idbPutMany(IDB.eng, engCache);
-
+  el.textContent = 'Notion DB에 저장 중...';
   try {
     const result = await _saveToNotion(newHS, newENG);
-
-    if (result.conflicts.length > 0) {
+    const hsAdded  = result.hsAdded  ?? 0;
+    const engAdded = result.engAdded ?? 0;
+    if (result.conflicts && result.conflicts.length > 0) {
       el.className = 'log-box log-warn';
-      el.textContent =
-        `⚠️ 저장 완료 — HS ${result.hsAdded}건 / 품명 ${result.engAdded}건 (충돌 ${result.conflicts.length}건)`;
+      el.textContent = `⚠️ 저장 완료 — HS ${hsAdded}건, 품명 ${engAdded}건 추가 (충돌 ${result.conflicts.length}건: Notion에서 직접 확인하세요)`;
     } else {
       el.className = 'log-box log-ok';
-      el.textContent =
-        `✅ 저장 완료 — HS ${result.hsAdded}건 / 품명 ${result.engAdded}건`;
+      el.textContent = `✅ 저장 완료 — HS ${hsAdded}건, 품명 ${engAdded}건 추가`;
     }
   } catch(e) {
     el.className = 'log-box log-warn';
-    el.textContent = `⚠️ 로컬 저장 완료 (Notion 실패: ${e.message})`;
+    el.textContent = `⚠️ 로컬 저장 완료 (Notion 동기화 실패: ${e.message})`;
   }
 
   await refreshStatus();
   await renderDBTable();
 }
-
 async function runRawConvert() {
   const lb=document.getElementById('rawLogBox'); lb.innerHTML='';
   document.getElementById('rawResultCard').style.display='block';
@@ -1022,13 +988,7 @@ async function runRawConvert() {
             hsFilled++;
             log2('ok', `  행${ri} HS: ${sc}|${scC} → ${hsDB[hsKey]}`);
           } else missingHS.add(`${sc}|${scC}`);
-          console.log({
-            key: hsKey,
-            hsValue: hsDB[hsKey],
-            setCode: sc,
-            setColor: scC
-          }   
-        });
+        }
         // 품명(영문): 단품코드 + 단품색상 복합키
         if (ea && ic && icC) {
           const engNow = readCell(inner, ea, ss.arr);
