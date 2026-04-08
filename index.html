@@ -837,6 +837,24 @@ async function processRef(files) {
         const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, defval:null });
         for (let r = startRow; r < data.length; r++) {
           const row = data[r];
+          if (r === startRow) {
+  console.log('헤더:', data[0]);
+  console.log('컬럼 인덱스 매핑:', data[0].map((h, i) => `${i}: ${h}`));
+  console.log('샘플 row:', row);
+  console.log('현재 설정:', {
+    colSET,
+    colSETCOLOR,
+    colHS,
+    colITEM,
+    colITEMCOLOR,
+    colENG
+  });
+  console.log('실제 값:', {
+    setCode: row[colSET],
+    setColor: row[colSETCOLOR],
+    hs: row[colHS]
+  });
+}
           if (!row || row.every(c => c == null)) continue;
           const setCode   = cl(row[colSET]);
           const setColor  = cl(row[colSETCOLOR]);
