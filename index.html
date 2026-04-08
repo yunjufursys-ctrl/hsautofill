@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수출신고서 자동완성</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#faf8f5;--surface:#ffffff;--surface2:#f3f0eb;--border:#e2ddd6;
+    --accent:#2d7a5f;--accent2:#1a5fa8;--text:#2c2825;--text2:#7a6e65;
+    --text3:#b0a89e;--danger:#c0392b;--warn:#b7791f;--radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:14px;min-height:100vh;}
+  header{border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:stretch;background:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  .logo{display:flex;align-items:center;gap:11px;padding:14px 0;margin-right:24px;}
+  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#2d7a5f,#1a5fa8);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:#000;}
+  .logo-text{font-size:14px;font-weight:600;}
+  nav{display:flex;align-items:stretch;}
+  .nav-tab{display:flex;align-items:center;gap:7px;padding:0 18px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+  .nav-tab:hover{color:var(--text);}
+  .nav-tab.active{color:#2d7a5f;border-bottom-color:#2d7a5f;}
+  .db-badge{background:rgba(45,122,95,.12);color:#2d7a5f;font-family:'DM Mono',monospace;font-size:10px;padding:2px 7px;border-radius:10px;}
+  .main{max-width:980px;margin:0 auto;padding:28px 20px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;}
+  .card-header{padding:12px 18px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);display:flex;align-items:center;justify-content:space-between;}
+  .card-body{padding:18px;}
+  .dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent);background:rgba(0,229,160,.04);}
+  .dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+  .drop-icon{font-size:26px;margin-bottom:9px;opacity:.4;}
+  .drop-text{font-size:13px;color:var(--text2);}
+  .drop-sub{font-size:11px;color:var(--text3);margin-top:4px;}
+  .tbl-wrap{overflow:auto;max-height:260px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:var(--surface2);padding:7px 11px;text-align:left;font-weight:500;color:var(--text2);position:sticky;top:0;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:6px 11px;border-bottom:1px solid var(--border);}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--surface2);}
+  .mono{font-family:'DM Mono',monospace;font-size:11px;}
+  .tag{display:inline-block;padding:2px 7px;border-radius:4px;font-family:'DM Mono',monospace;font-size:11px;}
+  .tag-hs{background:rgba(26,95,168,.1);color:#1a5fa8;}
+  .tag-eng{background:rgba(45,122,95,.1);color:#2d7a5f;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;font-family:'Noto Sans KR',sans-serif;}
+  .btn-primary{background:#2d7a5f;color:#fff;}
+  .btn-primary:hover{background:#236650;}
+  .btn-primary:disabled{opacity:.3;cursor:not-allowed;}
+  .btn-danger{background:rgba(255,77,106,.12);color:var(--danger);border:1px solid rgba(255,77,106,.25);}
+  .btn-danger:hover{background:rgba(255,77,106,.2);}
+  .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-sm{padding:5px 11px;font-size:11px;}
+  .log-box{background:var(--surface2);border-radius:var(--radius);padding:12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);max-height:200px;overflow-y:auto;line-height:1.9;}
+  .log-ok{color:#2d7a5f;}
+  .log-warn{color:#b7791f;}
+  .log-err{color:#c0392b;}
+  .log-info{color:#1a5fa8;}
+  .stats-bar{display:flex;gap:16px;background:var(--surface2);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;}
+  .stat{display:flex;flex-direction:column;gap:3px;}
+  .stat-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;}
+  .stat-val.green{color:#2d7a5f;}
+  .stat-val.blue{color:#1a5fa8;}
+  .stat-val.red{color:#c0392b;}
+  .stat-label{font-size:11px;color:var(--text3);}
+  .vdiv{width:1px;background:var(--border);}
+  .badge-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+  .badge{padding:2px 9px;border-radius:20px;font-size:11px;border:1px solid;}
+  .badge-blue{border-color:#1a5fa8;color:#1a5fa8;background:rgba(26,95,168,.07);}
+  .badge-green{border-color:#2d7a5f;color:#2d7a5f;background:rgba(45,122,95,.07);}
+  .notice{background:rgba(26,95,168,.06);border:1px solid rgba(26,95,168,.15);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#1a5fa8;margin-bottom:14px;line-height:1.7;}
+  .action-row{display:flex;gap:9px;align-items:center;margin-top:16px;}
+  .hint{font-size:12px;color:var(--text3);}
+  .file-loaded{display:flex;align-items:center;gap:12px;background:rgba(45,122,95,.06);border:1px solid rgba(45,122,95,.2);border-radius:var(--radius);padding:11px 15px;}
+  .file-name{font-size:13px;font-weight:500;}
+  .file-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+  .db-status{display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-size:12px;}
+  .db-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .db-dot.ok{background:#2d7a5f;}
+  .db-dot.empty{background:var(--text3);}
+  .tabs{display:flex;border-bottom:1px solid var(--border);}
+  .tab{padding:8px 16px;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;}
+  .tab.active{color:#2d7a5f;border-bottom-color:#2d7a5f;}
+  .section{display:none;}
+  .section.active{display:block;}
+  .col-settings{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  label{font-size:11px;color:var(--text2);font-weight:500;}
+  input[type=number]{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 11px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;width:100%;transition:border-color .15s;}
+  input:focus{outline:none;border-color:var(--accent);}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-thumb{background:#c8c0b8;border-radius:3px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-mark">HS</div>
+    <div class="logo-text">수출신고서 자동완성</div>
+  </div>
+  <nav>
+    <div class="nav-tab active" id="navRaw" onclick="switchPage('raw')">📋 수출 신고자료 생성</div>
+    <div class="nav-tab" id="navSearch" onclick="switchPage('search')">🔍 코드 검색</div>
+    <div class="nav-tab" id="navAdmin" onclick="switchPage('admin')">
+      ⚙️ 기준 DB 관리 <span class="db-badge" id="navBadge">0건</span>
+    </div>
+  </nav>
+</header>
+
+<div class="main">
+  <!-- ══ RAW 변환 페이지 ══ -->
+  <div class="section active" id="pageRaw">
+    <div class="card">
+      <div class="card-header">🔄 수출 신고자료 생성</div>
+      <div class="card-body">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          ERP 선적서류 관리 화면에서 자료 변환한 원본 신고자료를 그대로 업로드해 주세요.<br>
+          업로드 시 불필요한 열은 자동 삭제되며, DB 기준으로 HS번호 및 품명(영문)이 자동 입력됩니다.<br>
+          자동 입력된 항목은 <span style="background:#FFD700;color:#000;padding:1px 6px;border-radius:3px;font-size:11px;">노란색</span>으로 표시됩니다.
+        </p>
+        <div class="notice" style="margin-bottom:14px;">
+          삭제 열: <span class="mono" style="color:var(--warn)">B(P/O번호) · P(C/T시작) · Q(C/T끝) · R(출고일자) · S(총수량) · V(구성수량) · W(구성단가) · X(금액총수량) · Z(생산사업장)</span>
+        </div>
+        <div class="dropzone" id="rawDrop">
+          <input type="file" id="rawInput" accept=".xlsx,.xls">
+          <div class="drop-icon">🗂️</div>
+          <div class="drop-text">원본 파일 끌어놓기 또는 클릭하여 선택</div>
+          <div class="drop-sub">.xlsx / .xls 모두 가능</div>
+        </div>
+        <div id="rawStatus" style="display:none;margin-top:12px;"></div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="rawRunBtn" onclick="runRawConvert()" disabled>신고자료 생성 →</button>
+          <span class="hint" id="rawHint">원본 파일을 업로드하세요</span>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="rawResultCard" style="display:none;">
+      <div class="card-header">✅ 생성 결과</div>
+      <div class="card-body">
+        <div class="stats-bar">
+          <div class="stat"><div class="stat-val blue" id="rawStatTotal">0</div><div class="stat-label">전체 행</div></div>
+          <div class="vdiv"></div>
+          <div class="stat"><div class="stat-val green" id="rawStatHs">0</div><div class="stat-label">HS번호 채움</div></div>
+          <div class="vdiv"></div>
+          <div class="stat"><div class="stat-val green" id="rawStatEng">0</div><div class="stat-label">품명(영문) 채움</div></div>
+          <div class="vdiv"></div>
+          <div class="stat"><div class="stat-val red" id="rawStatMiss">0</div><div class="stat-label">매칭 실패</div></div>
+        </div>
+        <div class="log-box" id="rawLogBox"></div>
+        <div id="rawMissingPanel" style="display:none;margin-top:12px;">
+          <div style="font-size:12px;color:var(--warn);margin-bottom:6px;">⚠️ 매핑 실패 코드</div>
+          <div class="log-box" id="rawMissingLog" style="background:rgba(255,77,106,.04);border:1px solid rgba(255,77,106,.15);"></div>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="rawDownloadBtn" onclick="downloadRaw()" disabled>⬇ 신고자료 다운로드</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 코드 검색 페이지 ══ -->
+  <div class="section" id="pageSearch">
+    <div class="card">
+      <div class="card-header">🔍 코드 검색</div>
+      <div class="card-body">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          세트코드로 HS번호를, 단품코드로 품명(영문)을 바로 조회합니다.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <input type="text" id="searchInput"
+            placeholder="코드 입력 (예: CAC086DN, FAD0016NO...)"
+            style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;transition:border-color .15s;"
+            oninput="doSearch(this.value)"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('searchInput').value='';doSearch('')">✕</button>
+        </div>
+        <div id="searchResults">
+          <div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;">
+            코드를 입력하면 결과가 표시됩니다
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DB 관리 페이지 ══ -->
+  <div class="section" id="pageAdmin">
+    <div class="card">
+      <div class="card-header">
+        📥 기준 파일 업로드 → Notion DB 자동 동기화
+        <div class="badge-row">
+          <span class="badge badge-blue" id="adminHsCount">HS: 0건</span>
+          <span class="badge badge-green" id="adminEngCount">품명: 0건</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          HS번호·품명(영문)이 입력된 기존 신고서를 업로드하면 <strong>Notion DB에 자동으로 저장</strong>됩니다.<br>
+          팀원 모두 같은 Notion DB를 공유하며, Notion에서 직접 수정도 가능합니다.
+        </p>
+        <div class="dropzone" id="refDrop">
+          <input type="file" id="refInput" accept=".xlsx,.xls" multiple>
+          <div class="drop-icon">📁</div>
+          <div class="drop-text">기준 파일 끌어놓기 또는 클릭하여 선택</div>
+          <div class="drop-sub">.xlsx / .xls · 복수 선택 가능 · Notion DB에 자동 저장</div>
+        </div>
+        <div id="refStatus" style="display:none;margin-top:12px;"></div>
+
+        <details style="margin-top:14px;">
+          <summary style="font-size:12px;color:var(--text2);cursor:pointer;user-select:none;">⚙️ 열 위치 설정 (기본값 권장)</summary>
+          <div class="col-settings">
+            <div class="field"><label>세트코드 열 번호</label><input type="number" id="colSET" value="3" min="1" max="50"></div>
+            <div class="field"><label>세트색상 열 번호</label><input type="number" id="colSETCOLOR" value="4" min="1" max="50"></div>
+            <div class="field"><label>HS번호 열 번호</label><input type="number" id="colHS" value="14" min="1" max="50"></div>
+            <div class="field"><label>단품코드 열 번호</label><input type="number" id="colITEM" value="5" min="1" max="50"></div>
+            <div class="field"><label>단품색상 열 번호</label><input type="number" id="colITEMCOLOR" value="6" min="1" max="50"></div>
+            <div class="field"><label>품명(영문) 열 번호</label><input type="number" id="colENG" value="8" min="1" max="50"></div>
+            <div class="field"><label>데이터 시작 행 번호</label><input type="number" id="dataStartRow" value="2" min="1" max="20"></div>
+          </div>
+        </details>
+
+        <div style="margin-top:16px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.2);border-radius:var(--radius);padding:12px 16px;font-size:12px;color:var(--text2);line-height:1.8;">
+          <strong style="color:var(--accent)">🔗 팀 공유</strong><br>
+          파일 업로드 시 Notion DB에 자동 저장되며, 팀원 모두 동일한 DB를 공유합니다.<br>
+          변환 실행 시 항상 최신 Notion DB를 자동으로 불러옵니다.
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">🗄️ 저장된 DB <button class="btn btn-danger btn-sm" onclick="clearDB()">전체 초기화</button></div>
+      <div class="card-body" style="padding:0;">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('hs')">HS번호 매핑</div>
+          <div class="tab" onclick="switchTab('eng')">품명(영문) 매핑</div>
+        </div>
+        <div class="tbl-wrap" id="dbTableWrap"><div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;">데이터 없음</div></div>
+        <div style="padding:9px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);" id="dbFooter"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// DB — Netlify Functions → Notion API (팀 공유)
+// ════════════════════════════════════════
+const IDB = { hs:'hs_map', eng:'eng_map' };
+
+// 복합키 생성
+function makeMapKey(code1, code2) {
+  return [code1, code2]
+    .map(v => String(v || '').trim().toUpperCase())
+    .join('|');
+}
+const _cache = { hs:{}, eng:{} };
+
+// Netlify Function 엔드포인트 (상대경로 — 같은 도메인)
+const API = {
+  read: '/api/db-read',
+  write: '/api/db-write'
+};
+
+// Notion에서 최신 DB 로드
+async function _loadFromNotion() {
+  const res = await fetch(API.read);
+  if (!res.ok) throw new Error(`DB 로드 실패: ${res.status}`);
+  const data = await res.json();
+  _cache.hs  = data.hs  || {};
+  _cache.eng = data.eng || {};
+}
+
+// Notion에 DB 저장
+async function _saveToNotion(hsMap, engMap) {
+  const res = await fetch(API.write, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hs: hsMap, eng: engMap })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `저장 실패: ${res.status}`);
+  }
+  return await res.json();
+}
+async function saveInChunks(hsMap, engMap) {
+  const CHUNK_SIZE = 20;
+
+  const hsEntries = Object.entries(hsMap);
+  const engEntries = Object.entries(engMap);
+
+  let allConflicts = [];
+
+  // HS 저장
+  for (let i = 0; i < hsEntries.length; i += CHUNK_SIZE) {
+    const chunk = Object.fromEntries(hsEntries.slice(i, i + CHUNK_SIZE));
+    const res = await _saveToNotion(chunk, {});
+    if (res.conflicts) {
+      allConflicts.push(...res.conflicts);
+    }
+  }
+
+  // ENG 저장
+  for (let i = 0; i < engEntries.length; i += CHUNK_SIZE) {
+    const chunk = Object.fromEntries(engEntries.slice(i, i + CHUNK_SIZE));
+    const res = await _saveToNotion({}, chunk);
+    if (res.conflicts) {
+      allConflicts.push(...res.conflicts);
+    }
+  }
+
+  return {
+    conflicts: allConflicts
+  };
+}
+
+// 로컬 캐시 (오프라인 fallback)
+function _loadLocalCache() {
+  try {
+    const hs  = localStorage.getItem('hs_cache_hs');
+    const eng = localStorage.getItem('hs_cache_eng');
+    _cache.hs  = hs  ? JSON.parse(hs)  : {};
+    _cache.eng = eng ? JSON.parse(eng) : {};
+  } catch(e) { _cache.hs={}; _cache.eng={}; }
+}
+function _saveLocalCache() {
+  try {
+    localStorage.setItem('hs_cache_hs',  JSON.stringify(_cache.hs));
+    localStorage.setItem('hs_cache_eng', JSON.stringify(_cache.eng));
+  } catch(e) {}
+}
+
+async function idbAll(store)    { return store===IDB.hs ? {..._cache.hs} : {..._cache.eng}; }
+async function idbPutMany(store, map) {
+  const k = store===IDB.hs ? 'hs' : 'eng';
+  Object.assign(_cache[k], map);
+  _saveLocalCache();
+}
+async function idbClear(store)  { const k=store===IDB.hs?'hs':'eng'; _cache[k]={}; _saveLocalCache(); }
+async function idbCount(store)  { return Object.keys(store===IDB.hs?_cache.hs:_cache.eng).length; }
+
+// ════════════════════════════════════════
+// State
+// ════════════════════════════════════════
+let tgtBytes   = null;
+let resultBlob = null;
+let tgtFileName= '';
+let currentTab = 'hs';
+
+function cfg() {
+  function v(id,def){ const e=document.getElementById(id); const n=e?+e.value:def; return isNaN(n)?def:n; }
+  return {
+    colHS:       v('colHS',14)-1,
+    colENG:      v('colENG',8)-1,
+    colSET:      v('colSET',3)-1,
+    colSETCOLOR: v('colSETCOLOR',4)-1,   // 세트색상 (기본: D열=4)
+    colITEM:     v('colITEM',5)-1,
+    colITEMCOLOR:v('colITEMCOLOR',6)-1,  // 단품색상 (기본: F열=6)
+    startRow:    v('dataStartRow',2)-1,
+  };
+}
+
+// ════════════════════════════════════════
+// Init
+// ════════════════════════════════════════
+_loadLocalCache(); refreshStatus(); renderDBTable();
+// 초기 로딩 시 Notion DB 자동 불러오기
+(async () => {
+  try {
+    await _loadFromNotion();
+    _saveLocalCache();
+    await refreshStatus();
+    await renderDBTable();
+  } catch(e) {
+    console.warn('초기 Notion 로드 실패, 로컬 캐시 사용:', e.message);
+  }
+})();
+
+// ════════════════════════════════════════
+// Navigation
+// ════════════════════════════════════════
+function switchPage(p) {
+  ['raw','search','admin'].forEach(id=>{
+    document.getElementById('page'+id[0].toUpperCase()+id.slice(1)).classList.toggle('active',p===id);
+    document.getElementById('nav'+id[0].toUpperCase()+id.slice(1)).classList.toggle('active',p===id);
+  });
+  if (p==='admin') renderDBTable();
+  if (p==='search') setTimeout(()=>{ const el=document.getElementById('searchInput'); if(el){el.focus();doSearch(el.value);} },50);
+}
+
+// ════════════════════════════════════════
+// DB status
+// ════════════════════════════════════════
+async function refreshStatus() {
+  const hN = await idbCount(IDB.hs), eN = await idbCount(IDB.eng);
+  const badge = document.getElementById('navBadge');
+  if (badge) badge.textContent = (hN+eN)+'건';
+  const hc = document.getElementById('adminHsCount');
+  const ec = document.getElementById('adminEngCount');
+  if (hc) hc.textContent = `HS: ${hN}건`;
+  if (ec) ec.textContent = `품명: ${eN}건`;
+}
+
+// ════════════════════════════════════════
+// 기준 파일 업로드
+// ════════════════════════════════════════
+
+
+// ════════════════════════════════════════
+// 대상 파일 업로드
+// ════════════════════════════════════════
+
+
+
+// ════════════════════════════════════════
+// 자동완성
+// ════════════════════════════════════════
+
+
+// ════════════════════════════════════════
+// ZIP Reader (pure JS, no library needed)
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+// Inflate (DEFLATE decompressor)
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+// Async ZIP handling (DecompressionStream)
+// ════════════════════════════════════════
+class AsyncZip {
+  constructor(buffer) {
+    this.buf=new Uint8Array(buffer);
+    this.view=new DataView(buffer);
+    this.entries=this._parseCentralDir();
+  }
+  _parseCentralDir() {
+    const {buf,view}=this;
+    let eocd=-1;
+    for(let i=buf.length-22;i>=0;i--){
+      if(view.getUint32(i,true)===0x06054b50){eocd=i;break;}
+    }
+    if(eocd<0) throw new Error('Not a valid ZIP file');
+    const cdOffset=view.getUint32(eocd+16,true);
+    const cdSize  =view.getUint32(eocd+12,true);
+    const map={};
+    let p=cdOffset;
+    while(p<cdOffset+cdSize){
+      if(view.getUint32(p,true)!==0x02014b50) break;
+      const method =view.getUint16(p+10,true);
+      const crc    =view.getUint32(p+16,true);
+      const cSize  =view.getUint32(p+20,true);
+      const uSize  =view.getUint32(p+24,true);
+      const fnLen  =view.getUint16(p+28,true);
+      const exLen  =view.getUint16(p+30,true);
+      const cmLen  =view.getUint16(p+32,true);
+      const lhOff  =view.getUint32(p+42,true);
+      const name   =new TextDecoder().decode(buf.slice(p+46,p+46+fnLen));
+      map[name]={method,crc,cSize,uSize,lhOff};
+      p+=46+fnLen+exLen+cmLen;
+    }
+    return map;
+  }
+  _localData(name) {
+    const e=this.entries[name];
+    const fnLen =this.view.getUint16(e.lhOff+26,true);
+    const exLen =this.view.getUint16(e.lhOff+28,true);
+    const start =e.lhOff+30+fnLen+exLen;
+    return this.buf.slice(start,start+e.cSize);
+  }
+  async _decompress(name) {
+    const e=this.entries[name];
+    if(!e) return null;
+    const raw=this._localData(name);
+    if(e.method===0) return raw;
+    if(e.method===8) {
+      // Use DecompressionStream (supported in all modern browsers)
+      const ds=new DecompressionStream('deflate-raw');
+      const writer=ds.writable.getWriter();
+      writer.write(raw); writer.close();
+      const reader=ds.readable.getReader();
+      const chunks=[];
+      while(true){
+        const {done,value}=await reader.read();
+        if(done) break;
+        chunks.push(value);
+      }
+      const total=chunks.reduce((s,c)=>s+c.length,0);
+      const out=new Uint8Array(total);
+      let off=0;
+      for(const c of chunks){out.set(c,off);off+=c.length;}
+      return out;
+    }
+    throw new Error(`Unsupported ZIP method: ${e.method}`);
+  }
+  findEntry(name) {
+    if(this.entries[name]) return name;
+    return Object.keys(this.entries).find(k=>k.toLowerCase()===name.toLowerCase())||null;
+  }
+  async readText(name) {
+    const actual=this.findEntry(name);
+    if(!actual) throw new Error(`Not in ZIP: ${name}`);
+    const data=await this._decompress(actual);
+    return new TextDecoder('utf-8').decode(data);
+  }
+  async readBytes(name) {
+    const actual=this.findEntry(name);
+    if(!actual) return null;
+    return await this._decompress(actual);
+  }
+  getNames() { return Object.keys(this.entries); }
+}
+
+// ════════════════════════════════════════
+// ZIP Writer (pure JS)
+// ════════════════════════════════════════
+function buildZip(files) {
+  // files: { name → Uint8Array (raw bytes, uncompressed) }
+  const enc=new TextEncoder();
+  const localHeaders=[];
+  const centralDir=[];
+  let offset=0;
+
+  for(const [name,data] of Object.entries(files)) {
+    const nameBytes=enc.encode(name);
+    const crc=crc32(data);
+
+    // Compress with DeflateRaw — but we're building synchronously
+    // So we'll use STORE (method=0) for now which is always safe
+    // xlsx files with STORE are slightly larger but 100% valid
+    const compressed=data; // STORE
+    const method=0;
+
+    const lh=new Uint8Array(30+nameBytes.length);
+    const lv=new DataView(lh.buffer);
+    lv.setUint32(0,0x04034b50,true); // local file header sig
+    lv.setUint16(4,20,true);         // version needed
+    lv.setUint16(6,0,true);          // flags
+    lv.setUint16(8,method,true);     // compression
+    lv.setUint32(14,crc,true);       // crc
+    lv.setUint32(18,compressed.length,true); // compressed size
+    lv.setUint32(22,data.length,true);       // uncompressed size
+    lv.setUint16(26,nameBytes.length,true);  // filename length
+    lh.set(nameBytes,30);
+    localHeaders.push(lh);
+    localHeaders.push(compressed);
+
+    const cd=new Uint8Array(46+nameBytes.length);
+    const cv=new DataView(cd.buffer);
+    cv.setUint32(0,0x02014b50,true); // central dir sig
+    cv.setUint16(4,20,true);         // version made by
+    cv.setUint16(6,20,true);         // version needed
+    cv.setUint16(8,0,true);          // flags
+    cv.setUint16(10,method,true);    // compression
+    cv.setUint32(16,crc,true);       // crc
+    cv.setUint32(20,compressed.length,true);
+    cv.setUint32(24,data.length,true);
+    cv.setUint16(28,nameBytes.length,true);
+    cv.setUint32(42,offset,true);    // local header offset
+    cd.set(nameBytes,46);
+    centralDir.push(cd);
+
+    offset+=lh.length+compressed.length;
+  }
+
+  const cdBytes=concat(centralDir);
+  const eocd=new Uint8Array(22);
+  const ev=new DataView(eocd.buffer);
+  ev.setUint32(0,0x06054b50,true);
+  ev.setUint16(8,centralDir.length,true);
+  ev.setUint16(10,centralDir.length,true);
+  ev.setUint32(12,cdBytes.length,true);
+  ev.setUint32(16,offset,true);
+
+  const all=concat([...localHeaders,cdBytes,eocd]);
+  return new Blob([all],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+function concat(arrays) {
+  const total=arrays.reduce((s,a)=>s+a.length,0);
+  const out=new Uint8Array(total);
+  let off=0;
+  for(const a of arrays){out.set(a,off);off+=a.length;}
+  return out;
+}
+
+function crc32(data) {
+  let crc=0xFFFFFFFF;
+  const table=crc32.table||(crc32.table=(()=>{
+    const t=new Uint32Array(256);
+    for(let i=0;i<256;i++){
+      let c=i;
+      for(let j=0;j<8;j++) c=c&1?(0xEDB88320^(c>>>1)):(c>>>1);
+      t[i]=c;
+    }
+    return t;
+  })());
+  for(let i=0;i<data.length;i++) crc=table[(crc^data[i])&0xFF]^(crc>>>8);
+  return (crc^0xFFFFFFFF)>>>0;
+}
+
+function encodeUtf8(str) { return new TextEncoder().encode(str); }
+
+// ════════════════════════════════════════
+// Shared strings
+// ════════════════════════════════════════
+function parseSharedStrings(xml) {
+  const arr=[];
+  const si=/<si>([\s\S]*?)<\/si>/g;
+  const t=/<t[^>]*>([\s\S]*?)<\/t>/g;
+  let m;
+  while((m=si.exec(xml))!==null){
+    const texts=[]; let tm;
+    t.lastIndex=0;
+    while((tm=t.exec(m[1]))!==null) texts.push(xd(tm[1]));
+    arr.push(texts.join(''));
+  }
+  const map={};
+  arr.forEach((v,i)=>{map[v]=i;});
+  return {arr,map,add(v){if(map[v]!==undefined)return map[v];map[v]=arr.length;arr.push(v);return map[v];}};
+}
+
+function buildSharedStrings(arr) {
+  const items=arr.map(s=>`<si><t xml:space="preserve">${xe(s)}</t></si>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${arr.length}" uniqueCount="${arr.length}">${items}</sst>`;
+}
+
+// ════════════════════════════════════════
+// Cell read/write
+// ════════════════════════════════════════
+function readCell(rowXml,addr,ssArr) {
+  // Match self-closing <c ... /> OR <c ...>...</c>
+  const re=new RegExp(`<c\\b([^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>([\\s\\S]*?)<\\/c>)`,'i');
+  const m=re.exec(rowXml); if(!m) return '';
+  const attrs=m[1], inner=m[2]||'';
+  if(!inner) return ''; // truly empty cell
+  if(/<f[\s>]/.test(inner)){
+    const fm=inner.match(/<f[^>]*>([\s\S]*?)<\/f>/);
+    return fm?'='+xd(fm[1]):'';
+  }
+  const vm=inner.match(/<v>([\s\S]*?)<\/v>/); if(!vm) return '';
+  const raw=xd(vm[1]);
+  return /\bt="s"/.test(attrs)?(ssArr[parseInt(raw)]||''):raw;
+}
+
+function patchNum(rowXml,addr,value) {
+  const re=new RegExp(`(<c\\b[^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`,'i');
+  if(re.test(rowXml))
+    return rowXml.replace(re,(_,open)=>`${open.replace(/\s+t="[^"]*"/g,'')}><v>${value}</v></c>`);
+  return insertCell(rowXml,addr,`<c r="${addr}"><v>${value}</v></c>`);
+}
+
+function patchStr(rowXml,addr,ssIdx) {
+  const re=new RegExp(`(<c\\b)([^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`,'i');
+  if(re.test(rowXml))
+    return rowXml.replace(re,(_,c,rest)=>`${c} t="s"${rest.replace(/\s+t="[^"]*"/g,'')}><v>${ssIdx}</v></c>`);
+  return insertCell(rowXml,addr,`<c r="${addr}" t="s"><v>${ssIdx}</v></c>`);
+}
+
+function insertCell(rowXml,addr,cellXml) {
+  const tc=ln(addr.replace(/\d+/,''));
+  const sr=/<c\b[^>]*\br="([A-Z]+)\d+"[^>]*/g;
+  let sm,at=-1;
+  while((sm=sr.exec(rowXml))!==null){ if(ln(sm[1])>tc){at=sm.index;break;} }
+  return at>=0?rowXml.slice(0,at)+cellXml+rowXml.slice(at):rowXml+cellXml;
+}
+
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+// Utilities
+// ════════════════════════════════════════
+function colToLetter(n){let s='';n++;while(n>0){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
+function ln(s){let n=0;for(let i=0;i<s.length;i++)n=n*26+s.charCodeAt(i)-64;return n;}
+function xe(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function xd(s){return String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'");}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function rxe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function cl(v){return v==null?'':String(v).trim();}
+function isF(s){return typeof s==='string'&&s.startsWith('=');}
+
+function log(type,msg){ log2(type,msg); }
+function showEl(id,msg,type){
+  const el=document.getElementById(id);
+  el.className='log-box log-'+type;el.textContent=msg;el.style.display='block';
+}
+function setupDrop(zoneId,inputId,handler){
+  const zone=document.getElementById(zoneId);
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.classList.remove('drag');
+    const files=[...e.dataTransfer.files].filter(f=>f.name.match(/\.xlsx?$/i));
+    if(files.length) handler(files);
+  });
+}
+
+// ════════════════════════════════════════
+// DB Table
+// ════════════════════════════════════════
+async function renderDBTable(){
+  const wrap=document.getElementById('dbTableWrap');
+  const data=await idbAll(currentTab==='hs'?IDB.hs:IDB.eng);
+  const entries=Object.entries(data);
+  if(!entries.length){wrap.innerHTML='<div style="padding:32px;text-align:center;color:var(--text3);font-size:12px;">데이터 없음</div>';document.getElementById('dbFooter').textContent='';return;}
+  const[l1,l2]=currentTab==='hs'?['세트코드','HS번호']:['단품코드','품명(영문)'];
+  const tc=currentTab==='hs'?'tag-hs':'tag-eng';
+  let h=`<table><thead><tr><th>${l1}</th><th>${l2}</th></tr></thead><tbody>`;
+  entries.slice(0,300).forEach(([k,v])=>{h+=`<tr><td class="mono">${esc(k)}</td><td><span class="tag ${tc}">${esc(v)}</span></td></tr>`;});
+  if(entries.length>300)h+=`<tr><td colspan="2" style="color:var(--text3);text-align:center;padding:8px;">... 외 ${entries.length-300}건</td></tr>`;
+  h+='</tbody></table>';
+  wrap.innerHTML=h;
+  document.getElementById('dbFooter').textContent=`총 ${entries.length}건 저장됨`;
+}
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='hs')||(i===1&&tab==='eng')));
+  renderDBTable();
+}
+async function clearDB(){
+  if(!confirm('전체 초기화하시겠습니까?')) return;
+  await idbClear(IDB.hs);await idbClear(IDB.eng);
+  await refreshStatus();await renderDBTable();
+}
+
+// Fix loadTarget to use AsyncZip
+// ════════════════════════════════════════
+// XLS 자동완성 (SheetJS 방식 — 서식 일부 변경될 수 있음)
+// ════════════════════════════════════════
+
+
+// ════════════════════════════════════════
+// RAW 변환 기능
+// ════════════════════════════════════════
+// 삭제할 열 헤더명 (순서 무관, 헤더 이름으로 찾음)
+const RAW_DELETE_COLS = new Set(['P/O번호','C/T시작번호','C/T끝번호','출고일자','총수량','구성수량','구성단가','금액(총수량)','생산사업장']);
+
+// RAW 파일에서 HS번호·품명(영문) 열 헤더명
+const RAW_HS_COL       = 'HS번호';
+const RAW_ENG_COL      = '품명(영문)';
+const RAW_SET_COL      = '세트코드';
+const RAW_SET_COLOR_COL= '세트색상';
+const RAW_ITEM_COL     = '단품코드';
+const RAW_ITEM_COLOR_COL= '단품색상';
+
+// ── 신고서 서식 템플릿 (TOF 신고서 기준) ──────────────────
+const TMPL_STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="5"><numFmt numFmtId="164" formatCode="General"/><numFmt numFmtId="165" formatCode="@"/><numFmt numFmtId="166" formatCode="#,##0.00"/><numFmt numFmtId="167" formatCode="#,##0"/><numFmt numFmtId="168" formatCode="General"/></numFmts><fonts count="9"><font><sz val="10"/><name val="Arial"/><family val="2"/></font><font><sz val="10"/><name val="Arial"/><family val="0"/></font><font><sz val="10"/><name val="Arial"/><family val="0"/></font><font><sz val="10"/><name val="Arial"/><family val="0"/></font><font><sz val="10"/><color rgb="FF3F3E3E"/><name val="Noto Sans CJK SC"/><family val="2"/></font><font><sz val="10"/><color rgb="FF3F3E3E"/><name val="Arial"/><family val="2"/></font><font><sz val="10"/><color rgb="FFAB3737"/><name val="Arial"/><family val="2"/></font><font><sz val="10"/><name val="Noto Sans CJK SC"/><family val="2"/></font><font><b val="true"/><sz val="10"/><name val="Arial"/><family val="2"/></font></fonts><fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor rgb="FFFAFAFA"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFAFAFA"/><bgColor rgb="FFFFFFFF"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor rgb="FFFFFF00"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFCEEEE"/><bgColor rgb="FFFAFAFA"/></patternFill></fill></fills><borders count="14"><border diagonalUp="false" diagonalDown="false"><left/><right/><top/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="thin"><color rgb="FFC6C6C6"/></left><right style="thin"><color rgb="FFC6C6C6"/></right><top/><bottom style="thin"><color rgb="FFC6C6C6"/></bottom><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right style="thin"><color rgb="FFC6C6C6"/></right><top/><bottom style="thin"><color rgb="FFC6C6C6"/></bottom><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="thin"><color rgb="FFC6BDB6"/></left><right style="thin"><color rgb="FFC6BDB6"/></right><top/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="medium"/><right/><top style="medium"/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right/><top style="medium"/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right style="medium"/><top style="medium"/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="medium"/><right/><top/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right style="medium"/><top/><bottom/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left style="medium"/><right/><top/><bottom style="medium"/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right/><top/><bottom style="medium"/><diagonal/></border><border diagonalUp="false" diagonalDown="false"><left/><right style="medium"/><top/><bottom style="medium"/><diagonal/></border></borders><cellStyleXfs count="20"><xf numFmtId="164" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="true"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="43" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="41" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="44" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="42" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf><xf numFmtId="9" fontId="1" fillId="0" borderId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"></xf></cellStyleXfs><cellXfs count="44"><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="4" fillId="0" borderId="2" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="0" borderId="2" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="2" borderId="3" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="4" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="5" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="167" fontId="5" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="5" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="3" borderId="3" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="3" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="4" fillId="3" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="5" fillId="3" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="167" fontId="5" fillId="3" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="5" fillId="4" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="6" fillId="5" borderId="5" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="6" fillId="5" borderId="5" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="6" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="7" fillId="0" borderId="7" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="7" fillId="0" borderId="8" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="9" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="0" fillId="0" borderId="10" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="10" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="7" fillId="0" borderId="9" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="8" fillId="0" borderId="11" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="168" fontId="8" fillId="0" borderId="12" xfId="0" applyFont="true" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="168" fontId="8" fillId="0" borderId="13" xfId="0" applyFont="true" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="2" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="4" borderId="3" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="5" fillId="4" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="165" fontId="4" fillId="4" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="left" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="167" fontId="5" fillId="4" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="right" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="5" fillId="4" borderId="4" xfId="0" applyFont="true" applyBorder="true" applyAlignment="true" applyProtection="false"><alignment horizontal="center" vertical="center" textRotation="0" wrapText="true" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="164" fontId="0" fillId="4" borderId="0" xfId="0" applyFont="false" applyBorder="false" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="167" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="false" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="8" fillId="0" borderId="0" xfId="0" applyFont="true" applyBorder="false" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="8" fillId="0" borderId="12" xfId="0" applyFont="true" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="167" fontId="8" fillId="0" borderId="12" xfId="0" applyFont="true" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf><xf numFmtId="166" fontId="8" fillId="0" borderId="13" xfId="0" applyFont="true" applyBorder="true" applyAlignment="false" applyProtection="false"><alignment horizontal="general" vertical="bottom" textRotation="0" wrapText="false" indent="0" shrinkToFit="false"/><protection locked="true" hidden="false"/></xf></cellXfs><cellStyles count="6"><cellStyle name="Normal" xfId="0" builtinId="0"/><cellStyle name="Comma" xfId="15" builtinId="3"/><cellStyle name="Comma [0]" xfId="16" builtinId="6"/><cellStyle name="Currency" xfId="17" builtinId="4"/><cellStyle name="Currency [0]" xfId="18" builtinId="7"/><cellStyle name="Percent" xfId="19" builtinId="5"/></cellStyles><colors><indexedColors><rgbColor rgb="FF000000"/><rgbColor rgb="FFFFFFFF"/><rgbColor rgb="FFFF0000"/><rgbColor rgb="FF00FF00"/><rgbColor rgb="FF0000FF"/><rgbColor rgb="FFFFFF00"/><rgbColor rgb="FFFF00FF"/><rgbColor rgb="FF00FFFF"/><rgbColor rgb="FF800000"/><rgbColor rgb="FF008000"/><rgbColor rgb="FF000080"/><rgbColor rgb="FF808000"/><rgbColor rgb="FF800080"/><rgbColor rgb="FF008080"/><rgbColor rgb="FFC6BDB6"/><rgbColor rgb="FF808080"/><rgbColor rgb="FF9999FF"/><rgbColor rgb="FFAB3737"/><rgbColor rgb="FFFAFAFA"/><rgbColor rgb="FFFCEEEE"/><rgbColor rgb="FF660066"/><rgbColor rgb="FFFF8080"/><rgbColor rgb="FF0066CC"/><rgbColor rgb="FFCCCCCC"/><rgbColor rgb="FF000080"/><rgbColor rgb="FFFF00FF"/><rgbColor rgb="FFFFFF00"/><rgbColor rgb="FF00FFFF"/><rgbColor rgb="FF800080"/><rgbColor rgb="FF800000"/><rgbColor rgb="FF008080"/><rgbColor rgb="FF0000FF"/><rgbColor rgb="FF00CCFF"/><rgbColor rgb="FFCCFFFF"/><rgbColor rgb="FFCCFFCC"/><rgbColor rgb="FFFFFF99"/><rgbColor rgb="FFC6C6C6"/><rgbColor rgb="FFFF99CC"/><rgbColor rgb="FFCC99FF"/><rgbColor rgb="FFFFCC99"/><rgbColor rgb="FF3366FF"/><rgbColor rgb="FF33CCCC"/><rgbColor rgb="FF99CC00"/><rgbColor rgb="FFFFCC00"/><rgbColor rgb="FFFF9900"/><rgbColor rgb="FFFF6600"/><rgbColor rgb="FF666699"/><rgbColor rgb="FF969696"/><rgbColor rgb="FF003366"/><rgbColor rgb="FF339966"/><rgbColor rgb="FF003300"/><rgbColor rgb="FF333300"/><rgbColor rgb="FF993300"/><rgbColor rgb="FF993366"/><rgbColor rgb="FF333399"/><rgbColor rgb="FF3F3E3E"/></indexedColors></colors></styleSheet>`;
+
+const TMPL_COLS_XML = '<cols><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="1" min="1" style="0" width="5.66"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="2" min="2" style="0" width="16.88"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="3" min="3" style="0" width="11.1"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="4" min="4" style="0" width="9.99"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="5" min="5" style="0" width="14.33"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="6" min="6" style="0" width="9.99"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="7" min="7" style="0" width="67.1"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="8" min="8" style="0" width="44.43"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="13" min="9" style="0" width="8.43"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="14" min="14" style="0" width="14.1"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="15" min="15" style="0" width="8.43"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="16" min="16" style="0" width="11.21"/><col collapsed="false" customWidth="true" hidden="false" outlineLevel="0" max="17" min="17" style="0" width="14.1"/></cols>';
+
+const TMPL_ROW_HEADER_ATTRS = 'r="1" customFormat="false" ht="18" hidden="false" customHeight="true" outlineLevel="0" collapsed="false"';
+
+// 헤더 행 각 열 스타일 인덱스 (A~Q)
+const TMPL_HDR_STYLE = {A:1,B:2,C:2,D:2,E:2,F:2,G:2,H:2,I:3,J:3,K:3,L:3,M:3,N:3,O:2,P:2,Q:2};
+
+// 데이터 행 각 열 스타일 인덱스 (짝수행/홀수행)
+const TMPL_EVEN_STYLE = {A:4,B:5,C:5,D:5,E:5,F:5,G:6,H:5,I:7,J:7,K:7,L:7,M:8,N:9,O:8,P:7,Q:7};
+const TMPL_ODD_STYLE  = {A:10,B:11,C:11,D:11,E:11,F:11,G:12,H:11,I:13,J:13,K:13,L:13,M:14,N:9,O:14,P:13,Q:13};
+
+// 노란색 fill은 styles.xml의 fill[4] (index=4, xf[35]에 사용됨)
+// 노란색 xf 인덱스 (styles.xml에 이미 있음)
+const TMPL_YELLOW_XF = 35;  // fillId=4 (FFFFFF00)
+
+// 데이터 행 attrs
+const TMPL_DATA_ROW_ATTRS = (r) => `r="${r}" customFormat="false" ht="18" hidden="false" customHeight="true" outlineLevel="0" collapsed="false"`;
+
+
+let rawBytes    = null;
+let rawBlob     = null;
+let rawFileName = '';
+
+document.getElementById('rawInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  await loadRaw(f); e.target.value='';
+});
+setupDrop('rawDrop','rawInput', async f => { if(f[0]) await loadRaw(f[0]); });
+
+async function loadRaw(file) {
+  rawFileName = file.name;
+  rawBlob = null;
+  document.getElementById('rawResultCard').style.display='none';
+  document.getElementById('rawDownloadBtn').disabled=true;
+
+  const isXls = /\.xls$/i.test(file.name);
+
+  try {
+    if (isXls) {
+      // XLS: SheetJS로 읽어서 xlsx 바이너리로 변환 후 rawBytes에 저장
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array', cellFormula:false, cellStyles:true});
+      const xlsxArr = XLSX.write(wb, {type:'array', bookType:'xlsx'});
+      rawBytes = new Uint8Array(xlsxArr).buffer;
+      rawFileName = file.name.replace(/\.xls$/i, '.xlsx');
+    } else {
+      rawBytes = await file.arrayBuffer();
+    }
+
+    // Row count
+    const zip = new AsyncZip(rawBytes);
+    const sn = zip.getNames().find(n => /^xl\/worksheets\/sheet\d+\.xml$/i.test(n));
+    let rows = 0;
+    if (sn) { const xml = await zip.readText(sn); rows = (xml.match(/<row /g)||[]).length; }
+
+    const el = document.getElementById('rawStatus');
+    el.innerHTML = `<div class="file-loaded"><div style="font-size:20px">✅</div><div>
+      <div class="file-name">${esc(file.name)}</div>
+      <div class="file-meta">약 ${rows}행 감지${isXls ? ' &nbsp;·&nbsp; <span style="color:var(--warn)">xls → xlsx 변환됨</span>' : ''}</div>
+    </div></div>`;
+    el.style.display = 'block';
+    document.getElementById('rawRunBtn').disabled = false;
+    document.getElementById('rawHint').textContent = '생성 버튼을 누르세요';
+  } catch(e) { showEl('rawStatus', '❌ ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════
+// 기준 파일 업로드 → Notion DB 동기화
+// ════════════════════════════════════════
+document.getElementById('refInput').addEventListener('change', async e => {
+  await processRef([...e.target.files]); e.target.value = '';
+});
+setupDrop('refDrop', 'refInput', async f => { await processRef(f); });
+
+async function processRef(files) {
+  const { colHS, colENG, colSET, colSETCOLOR, colITEM, colITEMCOLOR, startRow } = cfg();
+  // hs: { '세트코드|세트색상': { hs, setCode, setColor } }
+  // eng: { '단품코드|단품색상': { eng, itemCode, itemColor } }
+  const newHS = {}, newENG = {};
+  const el = document.getElementById('refStatus');
+  el.className = 'log-box log-info';
+  el.textContent = '파일 읽는 중...';
+  el.style.display = 'block';
+
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type:'array', cellFormula:false });
+      for (const sn of wb.SheetNames) {
+        const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, defval:null });
+        for (let r = startRow; r < data.length; r++) {
+          const row = data[r];
+          if (!row || row.every(c => c == null)) continue;
+          const setCode   = cl(row[colSET]);
+          const setColor  = cl(row[colSETCOLOR]);
+          const itemCode  = cl(row[colITEM]);
+          const itemColor = cl(row[colITEMCOLOR]);
+          const hv = row[colHS];
+          const ev = cl(row[colENG]);
+
+          // HS번호: 세트코드 + 세트색상 복합키
+          if (setCode && setColor && hv != null) {
+            const h = String(hv).replace(/\D/g,'');
+            const key = makeMapKey(setCode, setColor);
+            if (h && !newHS[key]) newHS[key] = { hs: h, setCode, setColor };
+          }
+          // 품명(영문): 단품코드 + 단품색상 복합키
+          if (itemCode && itemColor && ev && !isF(ev)) {
+            const key = makeMapKey(itemCode, itemColor);
+            if (!newENG[key]) newENG[key] = { eng: ev, itemCode, itemColor };
+          }
+        }
+      }
+    } catch(e) {
+      el.className = 'log-box log-err';
+      el.textContent = `❌ ${file.name}: ${e.message}`;
+      return;
+    }
+  }
+
+  const hsCount  = Object.keys(newHS).length;
+  const engCount = Object.keys(newENG).length;
+  el.textContent = `파일 파싱 완료 — HS ${hsCount}건, 품명 ${engCount}건. Notion에 저장 중...`;
+
+  // 로컬 캐시 업데이트 (복합키 → 값만 저장)
+  const hsCacheUpdate = {}, engCacheUpdate = {};
+  Object.entries(newHS).forEach(([k,v])=>{ hsCacheUpdate[k]=v.hs; });
+  Object.entries(newENG).forEach(([k,v])=>{ engCacheUpdate[k]=v.eng; });
+  await idbPutMany(IDB.hs,  hsCacheUpdate);
+  await idbPutMany(IDB.eng, engCacheUpdate);
+
+  el.textContent = 'Notion DB에 저장 중...';
+  try {
+    const res = await fetch(API.write, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hs: newHS, eng: newENG })
+    });
+    const result = await res.json();
+    if (result.conflicts && result.conflicts.length > 0) {
+      el.className = 'log-box log-warn';
+      el.textContent = `⚠️ 저장 완료 — HS ${result.hsAdded}건, 품명 ${result.engAdded}건 추가 (충돌 ${result.conflicts.length}건: Notion에서 직접 확인하세요)`;
+    } else {
+      el.className = 'log-box log-ok';
+      el.textContent = `✅ 저장 완료 — HS ${result.hsAdded}건, 품명 ${result.engAdded}건 추가`;
+    }
+  } catch(e) {
+    el.className = 'log-box log-warn';
+    el.textContent = `⚠️ 로컬 저장 완료 (Notion 동기화 실패: ${e.message})`;
+  }
+
+  await refreshStatus();
+  await renderDBTable();
+}
+async function runRawConvert() {
+  const lb=document.getElementById('rawLogBox'); lb.innerHTML='';
+  document.getElementById('rawResultCard').style.display='block';
+  document.getElementById('rawMissingPanel').style.display='none';
+  document.getElementById('rawDownloadBtn').disabled=true;
+  rawBlob=null;
+
+  // Notion에서 최신 DB 로드
+  try {
+    await _loadFromNotion();
+    _saveLocalCache();
+    log2('ok', `Notion DB 로드 완료 — HS ${Object.keys(_cache.hs).length}건 / 품명 ${Object.keys(_cache.eng).length}건`);
+  } catch(e) {
+    log2('warn', `Notion 연결 실패, 로컬 캐시 사용: ${e.message}`);
+  }
+  const hsDB  = await idbAll(IDB.hs);
+  const engDB = await idbAll(IDB.eng);
+  log2('info',`DB — HS ${Object.keys(hsDB).length}건 / 품명 ${Object.keys(engDB).length}건`);
+
+  try {
+    // ── ZIP 직접 패치 (서식 100% 보존) ──────────────────
+    const zip = new AsyncZip(rawBytes);
+    const names = zip.getNames();
+    const allFiles = {};
+    for (const name of names) {
+      const data = await zip.readBytes(name);
+      if (data) allFiles[name] = data;
+    }
+
+    // Shared strings
+    // sharedStrings.xml 없을 수 있음 (xls 변환 시) → 빈 값으로 초기화
+    let ssXml = '';
+    try { ssXml = await zip.readText('xl/sharedStrings.xml'); } catch(e) { ssXml = ''; }
+    const ss = parseSharedStrings(ssXml);
+
+    // 신고서 템플릿 styles.xml 적용 (서식 이식)
+    allFiles['xl/styles.xml'] = encodeUtf8(TMPL_STYLES_XML);
+    const yellowFillIdx = TMPL_YELLOW_XF;
+
+    const sheetNames = names.filter(n => /^xl\/worksheets\/sheet\d+\.xml$/i.test(n)).sort();
+    log2('info', `시트 ${sheetNames.length}개 처리`);
+
+    let totalRows=0, hsFilled=0, engFilled=0;
+    const missingHS=new Set(), missingENG=new Set();
+
+    for (const sn of sheetNames) {
+      let xml = await zip.readText(sn);
+
+      // ── 헤더 행에서 열 위치 파악 ──
+      const headerMatch = xml.match(/<row\b[^>]*\br="1"[^>]*>([\s\S]*?)<\/row>/);
+      if (!headerMatch) { log2('warn', '헤더 행을 찾을 수 없음'); continue; }
+
+      const headers = {};  // colLetter -> headerName
+      const cellRe = /<c\b([^>]*)>([\s\S]*?)<\/c>/g;
+      let cm;
+      while ((cm = cellRe.exec(headerMatch[1])) !== null) {
+        const addr = (cm[1].match(/\br="([A-Z]+)/) || [])[1];
+        if (!addr) continue;
+        headers[addr] = readCell(headerMatch[1], addr+'1', ss.arr);
+      }
+      log2('info', `헤더: ${Object.values(headers).join(', ')}`);
+
+      // 삭제할 열 찾기 (헤더 이름 기준)
+      const deleteCols = new Set(
+        Object.entries(headers)
+          .filter(([,h]) => RAW_DELETE_COLS.has(h))
+          .map(([c]) => c)
+      );
+      log2('info', `삭제 열: ${[...deleteCols].sort().join(', ')}`);
+
+      const hsCol   = Object.entries(headers).find(([,h])=>h===RAW_HS_COL)?.[0];
+      const engCol  = Object.entries(headers).find(([,h])=>h===RAW_ENG_COL)?.[0];
+      const setCol  = Object.entries(headers).find(([,h])=>h===RAW_SET_COL)?.[0];
+      const itemCol = Object.entries(headers).find(([,h])=>h===RAW_ITEM_COL)?.[0];
+
+      // ── 각 행 처리: 값 채우기 + 노란색 ──
+      // Pass 1: 값 채울 셀 목록 수집
+      const patchMap = {};
+      // RAW 파일에서 세트색상, 단품색상 열 찾기
+      const setColorCol  = Object.entries(headers).find(([,h]) => h === RAW_SET_COLOR_COL)?.[0];
+      const itemColorCol = Object.entries(headers).find(([,h]) => h === RAW_ITEM_COLOR_COL)?.[0];
+
+      xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+        const rm = attrs.match(/\br="(\d+)"/); if (!rm) return;
+        const ri = parseInt(rm[1]); if (ri <= 1) return;
+        const sc  = setCol       ? readCell(inner, setCol      +ri, ss.arr) : '';
+        const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
+        const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
+        const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
+        if (!sc && !ic) return;
+        totalRows++;
+        const ha = hsCol  ? hsCol +ri : null;
+        const ea = engCol ? engCol+ri : null;
+
+        // HS번호: 세트코드 + 세트색상 복합키
+        if (ha && sc && scC) {
+          const hsKey = makeMapKey(sc, scC);
+          if (hsDB[hsKey]) {
+            patchMap[ha] = {type:'num', val:hsDB[hsKey]};
+            hsFilled++;
+            log2('ok', `  행${ri} HS: ${sc}|${scC} → ${hsDB[hsKey]}`);
+          } else missingHS.add(`${sc}|${scC}`);
+        }
+        // 품명(영문): 단품코드 + 단품색상 복합키
+        if (ea && ic && icC) {
+          const engNow = readCell(inner, ea, ss.arr);
+          if (!engNow || isF(engNow) || engNow.trim() === '.') {
+            const engKey = makeMapKey(ic, icC);
+            if (engDB[engKey]) {
+              const si = ss.add(engDB[engKey]);
+              patchMap[ea] = {type:'str', ssIdx:si};
+              engFilled++;
+              log2('ok', `  행${ri} 품명: ${ic}|${icC} → ${engDB[engKey]}`);
+            } else missingENG.add(`${ic}|${icC}`);
+          }
+        }
+      });
+if (missingHS.size > 0) {
+  const el = document.getElementById('rawLogBox');
+  el.className = 'log-box log-warn';
+  el.textContent =
+    `⚠️ HS 미등록 코드 ${missingHS.size}건: ` +
+    `${[...missingHS].slice(0,5).join(', ')}` +
+    `${missingHS.size > 5 ? '...' : ''}`;
+}
+      // ── 열 삭제: XML에서 삭제 열 셀 제거 + 주소 재매핑 ──
+      xml = deleteColumnsFromXml(xml, deleteCols);
+
+      // ── 신고서 서식 적용: 열너비 + 행/셀 스타일 ──
+      xml = applyTemplateFormat(xml, yellowFillIdx);
+
+      // Pass 2: 노란색으로 값 패치 (서식 적용 이후)
+      // patchMap의 key는 열 삭제 이전 주소 → 삭제 후 주소로 변환 필요
+      const addrRemap = buildAddrRemap(deleteCols);
+      xml = xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+        const rm = attrs.match(/\br="(\d+)"/); if (!rm) return full;
+        const ri = parseInt(rm[1]);
+        let out = inner;
+        let changed = false;
+        for (const [origAddr, patch] of Object.entries(patchMap)) {
+          const origRow = parseInt(origAddr.match(/\d+/)[0]);
+          if (origRow !== ri) continue;
+          const origCol = origAddr.match(/[A-Z]+/)[0];
+          const newCol  = addrRemap[origCol];
+          if (!newCol) continue;
+          const newAddr = newCol + ri;
+          if (patch.type === 'num') {
+            out = patchNumYellow(out, newAddr, patch.val, yellowFillIdx);
+          } else {
+            out = patchStrYellow(out, newAddr, patch.ssIdx, yellowFillIdx);
+          }
+          changed = true;
+        }
+        return changed ? `<row ${attrs}>${out}</row>` : full;
+      });
+
+      allFiles[sn] = encodeUtf8(xml);
+    }
+
+    // Shared strings 업데이트
+    allFiles['xl/sharedStrings.xml'] = encodeUtf8(buildSharedStrings(ss.arr));
+
+    // Content_Types / rels 보완
+    let ctKey = zip.findEntry('[Content_Types].xml') || '[Content_Types].xml';
+    let ct = new TextDecoder().decode(allFiles[ctKey]);
+    if (!ct.includes('sharedStrings')) {
+      ct = ct.replace('</Types>', '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>');
+      allFiles[ctKey] = encodeUtf8(ct);
+    }
+    const relKey = zip.findEntry('xl/_rels/workbook.xml.rels') || 'xl/_rels/workbook.xml.rels';
+    let rel = new TextDecoder().decode(allFiles[relKey]);
+    if (!rel.includes('sharedStrings')) {
+      rel = rel.replace('</Relationships>', '<Relationship Id="rIdSS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>');
+      allFiles[relKey] = encodeUtf8(rel);
+    }
+
+    rawBlob = buildZip(allFiles);
+
+    document.getElementById('rawStatTotal').textContent = totalRows;
+    document.getElementById('rawStatHs').textContent    = hsFilled;
+    document.getElementById('rawStatEng').textContent   = engFilled;
+    document.getElementById('rawStatMiss').textContent  = missingHS.size + missingENG.size;
+
+    if (missingHS.size || missingENG.size) {
+      let t='';
+      if (missingHS.size)  t+=`[HS 미매핑]\n${[...missingHS].join('\n')}\n\n`;
+      if (missingENG.size) t+=`[품명 미매핑]\n${[...missingENG].join('\n')}`;
+      document.getElementById('rawMissingLog').textContent=t;
+      document.getElementById('rawMissingPanel').style.display='block';
+    }
+    log2('info', `\n✅ 완료 — HS ${hsFilled}건 / 품명(영문) ${engFilled}건 / 서식 100% 보존`);
+    document.getElementById('rawDownloadBtn').disabled=false;
+  } catch(e) { log2('err','❌ '+e.message); console.error(e); }
+}
+
+// ── 노란색 채우기 스타일 추가 ─────────────────────────────
+function addYellowStyle(stylesXml) {
+  // Add yellow fill to fills list, return new index
+  const fillsMatch = stylesXml.match(/<fills count="(\d+)">([\s\S]*?)<\/fills>/);
+  if (!fillsMatch) return { newStylesXml: stylesXml, yellowFillIdx: 0 };
+
+  const fillCount = parseInt(fillsMatch[1]);
+  const yellowFill = '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>';
+  const newFills = `<fills count="${fillCount+1}">${fillsMatch[2]}${yellowFill}</fills>`;
+  const newStylesXml = stylesXml.replace(fillsMatch[0], newFills);
+
+  // Add a new xf entry in cellXfs that uses this fill
+  const xfsMatch = newStylesXml.match(/<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/);
+  if (!xfsMatch) return { newStylesXml, yellowFillIdx: fillCount };
+
+  const xfCount = parseInt(xfsMatch[1]);
+  // Clone first xf and set fillId to the new yellow fill index
+  const firstXf = (xfsMatch[2].match(/<xf\b[^/]*(\/?>)/) || ['<xf/>'])[0];
+  const yellowXf = firstXf
+    .replace(/fillId="[^"]*"/, `fillId="${fillCount}"`)
+    .replace(/applyFill="[^"]*"/, 'applyFill="1"')
+    + (firstXf.includes('applyFill') ? '' : ' applyFill="1"')
+      .replace(/\/>$/, '/>');
+  // Build a clean yellow xf
+  const newYellowXf = `<xf numFmtId="0" fontId="0" fillId="${fillCount}" borderId="0" applyFill="1"/>`;
+  const newXfs = `<cellXfs count="${xfCount+1}">${xfsMatch[2]}${newYellowXf}</cellXfs>`;
+  const finalStylesXml = newStylesXml.replace(xfsMatch[0], newXfs);
+
+  return { newStylesXml: finalStylesXml, yellowFillIdx: xfCount }; // new xf is at index xfCount
+}
+
+// ── 노란색으로 셀 패치 ────────────────────────────────────
+function patchNumYellow(rowXml, addr, value, styleIdx) {
+  const re = new RegExp(`(<c\\b[^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`, 'i');
+  if (re.test(rowXml)) {
+    return rowXml.replace(re, (_, open) => {
+      let o = open.replace(/\s+t="[^"]*"/g,'').replace(/\s+s="[^"]*"/g,'');
+      return `${o} s="${styleIdx}"><v>${value}</v></c>`;
+    });
+  }
+  return insertCell(rowXml, addr, `<c r="${addr}" s="${styleIdx}"><v>${value}</v></c>`);
+}
+
+function patchStrYellow(rowXml, addr, ssIdx, styleIdx) {
+  const re = new RegExp(`(<c\\b)([^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`, 'i');
+  if (re.test(rowXml)) {
+    return rowXml.replace(re, (_, c, rest) => {
+      let r = rest.replace(/\s+t="[^"]*"/g,'').replace(/\s+s="[^"]*"/g,'');
+      return `${c} t="s" s="${styleIdx}"${r}><v>${ssIdx}</v></c>`;
+    });
+  }
+  return insertCell(rowXml, addr, `<c r="${addr}" t="s" s="${styleIdx}"><v>${ssIdx}</v></c>`);
+}
+
+// ── 열 삭제: XML에서 특정 열 제거 후 주소 재매핑 ──────────
+function deleteColumnsFromXml(xml, deleteCols) {
+  const deleteNums = new Set([...deleteCols].map(c => ln(c)));
+  const maxCol = 30;
+  const remap = {};
+  let newIdx = 0;
+  for (let i = 1; i <= maxCol; i++) {
+    if (!deleteNums.has(i)) { newIdx++; remap[i] = colToLetter(newIdx - 1); }
+  }
+
+  // Process each row
+  return xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+    const newInner = remapCells(inner, deleteNums, remap);
+    return `<row ${attrs}>${newInner}</row>`;
+  // Also update dimension
+  }).replace(/(<dimension ref="[A-Z]+\d+:)([A-Z]+)(\d+")/g, (m, pre, col, post) => {
+    const oldNum = ln(col);
+    for (let i = oldNum; i >= 1; i--) { if (remap[i]) return pre + remap[i] + post; }
+    return m;
+  });
+}
+
+// Parse cells from row inner XML without overlapping regex
+function remapCells(inner, deleteNums, remap) {
+  let result = '';
+  let i = 0;
+  while (i < inner.length) {
+    if (inner[i] !== '<') { i++; continue; }
+    // Find tag name
+    if (inner.slice(i, i+2) !== '<c') { 
+      // Non-cell tag (unlikely in row inner, but skip safely)
+      const end = inner.indexOf('>', i);
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    // Check it's actually <c followed by space, /, or >
+    const next = inner[i+2];
+    if (next !== ' ' && next !== '/' && next !== '>') {
+      // Not a <c cell tag (e.g., could be something else)
+      const end = inner.indexOf('>', i);
+      if (end < 0) break;
+      result += inner.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+
+    // Find the end of this cell (self-closing or full)
+    const selfCloseEnd = findSelfCloseEnd(inner, i);
+    let cellStr, cellAttrs, cellInner, isSelfClose;
+
+    if (selfCloseEnd >= 0) {
+      // Self-closing: <c ... />
+      cellStr = inner.slice(i, selfCloseEnd + 1);
+      cellAttrs = cellStr.slice(2, -2).trim(); // remove <c and />
+      cellInner = null;
+      isSelfClose = true;
+      i = selfCloseEnd + 1;
+    } else {
+      // Regular: <c ...>...</c>
+      const gtPos = inner.indexOf('>', i);
+      if (gtPos < 0) { i++; continue; }
+      const closePos = inner.indexOf('</c>', gtPos);
+      if (closePos < 0) { i++; continue; }
+      cellStr = inner.slice(i, closePos + 4);
+      cellAttrs = inner.slice(i + 2, gtPos).trim();
+      cellInner = inner.slice(gtPos + 1, closePos);
+      isSelfClose = false;
+      i = closePos + 4;
+    }
+
+    // Get column from r attribute
+    const addrM = cellAttrs.match(/\br="([A-Z]+)(\d+)"/);
+    if (!addrM) {
+      result += isSelfClose ? `<c ${cellAttrs}/>` : `<c ${cellAttrs}>${cellInner}</c>`;
+      continue;
+    }
+    const colNum = ln(addrM[1]);
+    const rowNum = addrM[2];
+    if (deleteNums.has(colNum)) continue; // skip deleted cols
+
+    const newCol = remap[colNum];
+    const newAddr = newCol + rowNum;
+    const newAttrs = cellAttrs.replace(/\br="[A-Z]+\d+"/, `r="${newAddr}"`);
+    result += isSelfClose ? `<c ${newAttrs}/>` : `<c ${newAttrs}>${cellInner}</c>`;
+  }
+  return result;
+}
+
+function findSelfCloseEnd(str, start) {
+  // Find /> before next <c or >, handles attributes with quoted >
+  let i = start + 2; // skip <c
+  let inQuote = false;
+  let quoteChar = '';
+  while (i < str.length) {
+    const ch = str[i];
+    if (inQuote) {
+      if (ch === quoteChar) inQuote = false;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = true; quoteChar = ch;
+    } else if (ch === '/' && str[i+1] === '>') {
+      return i + 1; // position of >
+    } else if (ch === '>') {
+      return -1; // regular closing tag, not self-closing
+    }
+    i++;
+  }
+  return -1;
+}
+
+
+
+
+
+// ════════════════════════════════════════
+// 신고서 서식 적용 (열너비 + 행높이 + 셀 스타일)
+// ════════════════════════════════════════
+// 열 삭제 후 원본 열 문자 → 새 열 문자 매핑 테이블
+function buildAddrRemap(deleteCols) {
+  const deleteNums = new Set([...deleteCols].map(c => ln(c)));
+  const remap = {}; // 'B' -> 'A' etc
+  let newIdx = 0;
+  for (let i = 1; i <= 26; i++) {
+    const letter = colToLetter(i - 1);
+    if (!deleteNums.has(i)) {
+      newIdx++;
+      remap[letter] = colToLetter(newIdx - 1);
+    }
+  }
+  return remap;
+}
+
+function applyTemplateFormat(xml, yellowXfIdx) {
+  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
+
+  // 1. 열 너비 교체
+  xml = xml.replace(/<cols>[\s\S]*?<\/cols>/, TMPL_COLS_XML);
+
+  // 2. 각 행 처리 — tokenizer 방식으로 셀 파싱
+  let dataRowCount = 0;
+  xml = xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+    const rM = attrs.match(/\br="(\d+)"/);
+    if (!rM) return full;
+    const rn = parseInt(rM[1]);
+
+    if (rn === 1) {
+      // 헤더 행: 스타일만 교체
+      const newInner = remapCellStyles(inner, TMPL_HDR_STYLE, -1);
+      return `<row ${TMPL_ROW_HEADER_ATTRS}>${newInner}</row>`;
+    }
+
+    const hasData = inner.includes('<v>');
+    if (!hasData) return full;
+
+    dataRowCount++;
+    const styleMap = (dataRowCount % 2 === 1) ? TMPL_EVEN_STYLE : TMPL_ODD_STYLE;
+    const newInner = remapCellStyles(inner, styleMap, yellowXfIdx);
+    return `<row ${TMPL_DATA_ROW_ATTRS(rn)}>${newInner}</row>`;
+  });
+
+  return xml;
+}
+
+// 행 내부 XML의 각 셀 스타일을 교체 (tokenizer 방식)
+function remapCellStyles(inner, styleMap, yellowXfIdx) {
+  let result = '';
+  let i = 0;
+  while (i < inner.length) {
+    if (inner[i] !== '<') { i++; continue; }
+    if (inner.slice(i, i+2) !== '<c') {
+      // non-cell tag: pass through as-is
+      const end = inner.indexOf('>', i);
+      if (end < 0) { result += inner.slice(i); break; }
+      result += inner.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+    const next = inner[i+2];
+    if (next !== ' ' && next !== '/' && next !== '>') {
+      const end = inner.indexOf('>', i);
+      if (end < 0) { result += inner.slice(i); break; }
+      result += inner.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+
+    // Determine self-closing vs regular
+    const scEnd = findSelfCloseEnd(inner, i);
+    let cellAttrs, cellInner, isSelfClose, cellEnd;
+
+    if (scEnd >= 0) {
+      cellAttrs = inner.slice(i + 2, scEnd - 1).trim();
+      cellInner = null;
+      isSelfClose = true;
+      cellEnd = scEnd + 1;
+    } else {
+      const gtPos = inner.indexOf('>', i);
+      if (gtPos < 0) { result += inner.slice(i); break; }
+      const closePos = inner.indexOf('</c>', gtPos);
+      if (closePos < 0) { result += inner.slice(i); break; }
+      cellAttrs = inner.slice(i + 2, gtPos).trim();
+      cellInner = inner.slice(gtPos + 1, closePos);
+      isSelfClose = false;
+      cellEnd = closePos + 4;
+    }
+
+    // Get column letter
+    const addrM = cellAttrs.match(/\br="([A-Z]+)(\d+)"/);
+    const col = addrM ? addrM[1] : null;
+
+    // Check if this cell is already yellow — don't override
+    const curS = (cellAttrs.match(/\bs="(\d+)"/) || [])[1];
+    let newAttrs = cellAttrs;
+
+    if (col && (yellowXfIdx < 0 || parseInt(curS) !== yellowXfIdx)) {
+      const sIdx = styleMap[col] !== undefined ? styleMap[col] : 0;
+      newAttrs = cellAttrs.replace(/\bs="[^"]*"/, `s="${sIdx}"`);
+      if (!newAttrs.includes('s=')) newAttrs += ` s="${sIdx}"`;
+    }
+
+    if (isSelfClose) {
+      result += `<c ${newAttrs}/>`;
+    } else {
+      result += `<c ${newAttrs}>${cellInner}</c>`;
+    }
+    i = cellEnd;
+  }
+  return result;
+}
+
+
+// ── GitHub Gist 설정 함수들 ───────────────────────────
+function downloadRaw() {
+  if(!rawBlob) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(rawBlob);
+  a.download=rawFileName.replace(/\.xls[x]?$/i,'')+'_신고서.xlsx';
+  a.click();
+}
+
+function log2(type,msg){
+  const lb=document.getElementById('rawLogBox');
+  const d=document.createElement('div');
+  d.className='log-'+type;d.textContent=msg;lb.appendChild(d);lb.scrollTop=lb.scrollHeight;
+}
+
+// ════════════════════════════════════════
+// 코드 검색
+// ════════════════════════════════════════
+function doSearch(query) {
+  const wrap = document.getElementById('searchResults');
+  if (!wrap) return;
+  const q = (query || '').trim().toLowerCase();
+
+  if (!q) {
+    wrap.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;">코드를 입력하면 결과가 표시됩니다</div>';
+    return;
+  }
+
+  const hsResults  = Object.entries(_cache.hs).filter(([k]) => k.toLowerCase().includes(q));
+  const engResults = Object.entries(_cache.eng).filter(([k]) => k.toLowerCase().includes(q));
+  const total = hsResults.length + engResults.length;
+
+  if (total === 0) {
+    wrap.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;">
+      <div style="font-size:24px;margin-bottom:10px;opacity:.4">🔍</div>
+      "<strong style="color:var(--text)">${esc(query)}</strong>" 에 해당하는 코드가 없습니다
+    </div>`;
+    return;
+  }
+
+  function highlight(text, q) {
+    const i = text.toLowerCase().indexOf(q);
+    if (i < 0) return esc(text);
+    return esc(text.slice(0, i)) +
+      `<mark style="background:rgba(0,229,160,.25);color:var(--accent);border-radius:2px;">${esc(text.slice(i, i+q.length))}</mark>` +
+      esc(text.slice(i + q.length));
+  }
+
+  let html = '';
+
+  // HS번호 결과
+  if (hsResults.length > 0) {
+    html += `<div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;padding:0 2px;">
+      HS번호 매핑 — ${hsResults.length}건
+    </div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;">`;
+    hsResults.slice(0, 100).forEach(([code, hs]) => {
+      const parts = code.split('|');
+      const setCode = parts[0] || '', setColor = parts[1] || '';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:6px;padding:10px 14px;gap:12px;">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);">${highlight(setCode, q)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">색상: ${esc(setColor)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="background:rgba(26,95,168,.1);color:#1a5fa8;font-family:'DM Mono',monospace;font-size:12px;padding:3px 10px;border-radius:4px;">${esc(hs)}</span>
+          <button onclick="navigator.clipboard.writeText('${esc(hs)}')" title="복사"
+            style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 6px;border-radius:4px;transition:color .15s;"
+            onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">📋</button>
+        </div>
+      </div>`;
+    });
+    if (hsResults.length > 100) html += `<div style="text-align:center;font-size:11px;color:var(--text3);padding:6px;">... 외 ${hsResults.length-100}건</div>`;
+    html += `</div>`;
+  }
+
+  // 품명(영문) 결과
+  if (engResults.length > 0) {
+    html += `<div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;padding:0 2px;">
+      품명(영문) 매핑 — ${engResults.length}건
+    </div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:4px;">`;
+    engResults.slice(0, 100).forEach(([code, eng]) => {
+      const parts = code.split('|');
+      const itemCode = parts[0] || '', itemColor = parts[1] || '';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:6px;padding:10px 14px;gap:12px;">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text);">${highlight(itemCode, q)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">색상: ${esc(itemColor)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="background:rgba(45,122,95,.1);color:#2d7a5f;font-family:'DM Mono',monospace;font-size:12px;padding:3px 10px;border-radius:4px;">${esc(eng)}</span>
+          <button onclick="navigator.clipboard.writeText('${esc(eng)}')" title="복사"
+            style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 6px;border-radius:4px;transition:color .15s;"
+            onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text3)'">📋</button>
+        </div>
+      </div>`;
+    });
+    if (engResults.length > 100) html += `<div style="text-align:center;font-size:11px;color:var(--text3);padding:6px;">... 외 ${engResults.length-100}건</div>`;
+    html += `</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+function showConflicts(conflicts) {
+  const el = document.getElementById('refStatus');
+
+  let msg = `⚠️ 충돌 ${conflicts.length}건 발생\n\n`;
+
+  conflicts.slice(0, 20).forEach(c => {
+    const label = c.type === 'HS' ? 'HS' : '품명';
+    msg += `[${label}] ${c.key}\n`;
+    msg += `기존: ${c.oldValue}\n`;
+    msg += `신규: ${c.newValue}\n\n`;
+  });
+
+  if (conflicts.length > 20) {
+    msg += `... 외 ${conflicts.length - 20}건`;
+  }
+
+  el.className = 'log-box log-warn';
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>
