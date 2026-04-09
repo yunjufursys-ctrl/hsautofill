@@ -976,12 +976,10 @@ async function runRawConvert() {
         const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
-        console.log(`행${ri}: sc="${sc}", ic="${ic}"`);
         if (!sc && !ic) {
           // 세트코드/단품코드 없는 행 = 합계행
           if (inner.includes('<v>')) {
             sumRows.add(ri);
-            console.log(`합계행 감지: 행${ri}`);
           }
           return;
         }
@@ -1024,19 +1022,7 @@ if (missingHS.size > 0) {
       xml = deleteColumnsFromXml(xml, deleteCols);
 
       // ── 신고서 서식 적용: 열너비 + 행/셀 스타일 ──
-      xml = applyTemplateFormat(xml, yellowFillIdx);
-
-      // 합계행 서식 적용 (빨간색 배경/글꼴)
-      if (sumRows.size > 0) {
-        const TMPL_SUM_STYLE = {A:16,B:17,C:17,D:17,E:17,F:17,G:17,H:17,I:17,J:17,K:17,L:17,M:17,N:17,O:17,P:17,Q:17};
-        xml = xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
-          const rm = attrs.match(/\br="(\d+)"/); if (!rm) return full;
-          const ri = parseInt(rm[1]);
-          if (!sumRows.has(ri)) return full;
-          const newInner = remapCellStyles(inner, TMPL_SUM_STYLE, -1);
-          return `<row ${TMPL_DATA_ROW_ATTRS(ri)}>${newInner}</row>`;
-        });
-      }
+      xml = applyTemplateFormat(xml, yellowFillIdx, sumRows);
 
       // Pass 2: 노란색으로 값 패치 (서식 적용 이후)
       // patchMap의 key는 열 삭제 이전 주소 → 삭제 후 주소로 변환 필요
@@ -1288,8 +1274,8 @@ function buildAddrRemap(deleteCols) {
   return remap;
 }
 
-function applyTemplateFormat(xml, yellowXfIdx) {
-  const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
+function applyTemplateFormat(xml, yellowXfIdx, sumRows) {
+  const TMPL_SUM_STYLE = {A:16,B:17,C:17,D:17,E:17,F:17,G:17,H:17,I:17,J:17,K:17,L:17,M:17,N:17,O:17,P:17,Q:17};
 
   // 1. 열 너비 교체
   xml = xml.replace(/<cols>[\s\S]*?<\/cols>/, TMPL_COLS_XML);
@@ -1305,6 +1291,20 @@ function applyTemplateFormat(xml, yellowXfIdx) {
       // 헤더 행: 스타일만 교체
       const newInner = remapCellStyles(inner, TMPL_HDR_STYLE, -1);
       return `<row ${TMPL_ROW_HEADER_ATTRS}>${newInner}</row>`;
+    }
+
+    // 합계행 서식 (빨간색 배경/글꼴) — 빈 셀 포함 A~Q 전체
+    if (sumRows && sumRows.has(rn)) {
+      let newInner = remapCellStyles(inner, TMPL_SUM_STYLE, -1);
+      // A~Q 열 중 없는 셀 강제 삽입
+      const cols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
+      for (const col of cols) {
+        const addr = col + rn;
+        if (!newInner.includes(`r="${addr}"`)) {
+          newInner = insertCell(newInner, addr, `<c r="${addr}" s="17"/>`);
+        }
+      }
+      return `<row ${TMPL_DATA_ROW_ATTRS(rn)}>${newInner}</row>`;
     }
 
     const hasData = inner.includes('<v>');
