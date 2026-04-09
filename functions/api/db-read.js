@@ -1,9 +1,9 @@
-// Cloudflare Pages Function: Notion DB에서 매핑 데이터 읽기
 const NOTION_VERSION = '2022-06-28';
 
 async function queryDB(dbId, token, valuePropName) {
   const map = {};
   let cursor;
+  let debugDone = false;
 
   while (true) {
     const body = { page_size: 100 };
@@ -29,9 +29,15 @@ async function queryDB(dbId, token, valuePropName) {
     for (const page of data.results) {
       const props = page.properties;
 
-      // 매핑키: title 타입
+      // 첫 번째 페이지에서 컬럼명 디버그
+      if (!debugDone) {
+        debugDone = true;
+        console.log('DB 컬럼 목록:', Object.keys(props));
+        console.log('찾는 컬럼명:', valuePropName);
+        console.log('컬럼 존재 여부:', !!props[valuePropName]);
+      }
+
       const titleProp = Object.values(props).find(p => p.type === 'title');
-      // 값: 이름으로 명시적으로 찾기
       const valueProp = props[valuePropName];
 
       if (!titleProp || !valueProp) continue;
@@ -49,9 +55,9 @@ async function queryDB(dbId, token, valuePropName) {
 }
 
 export async function onRequest(context) {
-  const token  = context.env.NOTION_TOKEN;
-  const hsDb   = context.env.NOTION_HS_DB;
-  const engDb  = context.env.NOTION_ENG_DB;
+  const token = context.env.NOTION_TOKEN;
+  const hsDb  = context.env.NOTION_HS_DB;
+  const engDb = context.env.NOTION_ENG_DB;
 
   if (context.request.method === 'OPTIONS') {
     return new Response(null, {
