@@ -978,7 +978,10 @@ async function runRawConvert() {
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
         if (!sc && !ic) {
           // 세트코드/단품코드 없는 행 = 합계행
-          if (inner.includes('<v>')) sumRows.add(ri);
+          if (inner.includes('<v>')) {
+            sumRows.add(ri);
+            console.log(`합계행 감지: 행${ri}`);
+          }
           return;
         }
         totalRows++;
