@@ -976,6 +976,7 @@ async function runRawConvert() {
         const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
+        console.log(`행${ri}: sc="${sc}", ic="${ic}"`);
         if (!sc && !ic) {
           // 세트코드/단품코드 없는 행 = 합계행
           if (inner.includes('<v>')) {
