@@ -1029,8 +1029,8 @@ if (missingHS.size > 0) {
       // 합계행 서식 적용 (빨간색 배경/글꼴)
       if (sumRows.size > 0) {
         const TMPL_SUM_STYLE = {A:16,B:17,C:17,D:17,E:17,F:17,G:17,H:17,I:17,J:17,K:17,L:17,M:17,N:17,O:17,P:17,Q:17};
-        xml = xml.replace(/<row([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
-          const rm = attrs.match(/r="(\d+)"/); if (!rm) return full;
+        xml = xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+          const rm = attrs.match(/\br="(\d+)"/); if (!rm) return full;
           const ri = parseInt(rm[1]);
           if (!sumRows.has(ri)) return full;
           const newInner = remapCellStyles(inner, TMPL_SUM_STYLE, -1);
