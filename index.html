@@ -980,9 +980,6 @@ async function runRawConvert() {
         const ha = hsCol  ? hsCol +ri : null;
         const ea = engCol ? engCol+ri : null;
 
-        // HS번호 열 기존값 무조건 초기화 (빈 문자열로)
-        if (ha) patchMap[ha] = {type:'clear'};
-
         // HS번호: 세트코드 + 세트색상 복합키
         if (ha && sc && scC) {
           const hsKey = makeMapKey(sc, scC);
@@ -1035,9 +1032,7 @@ if (missingHS.size > 0) {
           const newCol  = addrRemap[origCol];
           if (!newCol) continue;
           const newAddr = newCol + ri;
-          if (patch.type === 'clear') {
-            out = patchClearCell(out, newAddr);
-          } else if (patch.type === 'num') {
+          if (patch.type === 'num') {
             out = patchNumYellow(out, newAddr, patch.val, yellowFillIdx);
           } else {
             out = patchStrYellow(out, newAddr, patch.ssIdx, yellowFillIdx);
@@ -1115,18 +1110,6 @@ function addYellowStyle(stylesXml) {
   const finalStylesXml = newStylesXml.replace(xfsMatch[0], newXfs);
 
   return { newStylesXml: finalStylesXml, yellowFillIdx: xfCount }; // new xf is at index xfCount
-}
-
-// ── 셀 내용 지우기 (기존 값 삭제) ───────────────────────
-function patchClearCell(rowXml, addr) {
-  const re = new RegExp(`(<c\\b[^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`, 'i');
-  if (re.test(rowXml)) {
-    return rowXml.replace(re, (_, open) => {
-      let o = open.replace(/\s+t="[^"]*"/g,'').replace(/\s+s="[^"]*"/g,'');
-      return `${o}/>`;
-    });
-  }
-  return rowXml;
 }
 
 // ── 노란색으로 셀 패치 ────────────────────────────────────
