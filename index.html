@@ -981,6 +981,7 @@ async function runRawConvert() {
         const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
+        console.log(`행${ri} 읽기:`, { sc, scC, ic, icC, setCol, setColorCol });
         if (!sc && !ic) return;
         totalRows++;
         const ha = hsCol  ? hsCol +ri : null;
