@@ -989,6 +989,13 @@ async function runRawConvert() {
         // HS번호: 세트코드 + 세트색상 복합키
         if (ha && sc && scC) {
           const hsKey = makeMapKey(normalizeCode(sc), normalizeColor(scC));
+          console.log({
+            sc, scC,
+            normalized_sc: normalizeCode(sc),
+            normalized_scC: normalizeColor(scC),
+            hsKey,
+            hsValue: hsDB[hsKey]
+          });
           if (hsDB[hsKey]) {
             patchMap[ha] = {type:'num', val:hsDB[hsKey]};
             hsFilled++;
