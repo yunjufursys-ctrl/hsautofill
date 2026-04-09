@@ -254,12 +254,6 @@ function makeMapKey(code1, code2) {
     .map(v => String(v || '').trim().toUpperCase())
     .join('|');
 }
-function normalizeCode(v) {
-  return String(v || '').trim().toUpperCase();
-}
-function normalizeColor(c) {
-  return String(c || '').trim().toUpperCase().slice(0, 2);
-}
 const _cache = { hs:{}, eng:{} };
 
 // Netlify Function 엔드포인트 (상대경로 — 같은 도메인)
@@ -844,12 +838,12 @@ async function processRef(files) {
           // HS번호: 세트코드 + 세트색상 복합키
           if (setCode && setColor && hv != null) {
             const h = String(hv).replace(/\D/g,'');
-            const key = makeMapKey(normalizeCode(setCode), normalizeColor(setColor));
+            const key = makeMapKey(setCode, setColor);
             if (h && !newHS[key]) newHS[key] = { hs: h, setCode, setColor };
           }
           // 품명(영문): 단품코드 + 단품색상 복합키
           if (itemCode && itemColor && ev && !isF(ev)) {
-            const key = makeMapKey(normalizeCode(itemCode), normalizeColor(itemColor));
+            const key = makeMapKey(itemCode, itemColor);
             if (!newENG[key]) newENG[key] = { eng: ev, itemCode, itemColor };
           }
         }
@@ -981,22 +975,17 @@ async function runRawConvert() {
         const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
-        console.log(`행${ri} 읽기:`, { sc, scC, ic, icC, setCol, setColorCol });
         if (!sc && !ic) return;
         totalRows++;
         const ha = hsCol  ? hsCol +ri : null;
         const ea = engCol ? engCol+ri : null;
 
+        // HS번호 열 기존값 무조건 초기화 (빈 문자열로)
+        if (ha) patchMap[ha] = {type:'clear'};
+
         // HS번호: 세트코드 + 세트색상 복합키
         if (ha && sc && scC) {
-          const hsKey = makeMapKey(normalizeCode(sc), normalizeColor(scC));
-          console.log({
-            sc, scC,
-            normalized_sc: normalizeCode(sc),
-            normalized_scC: normalizeColor(scC),
-            hsKey,
-            hsValue: hsDB[hsKey]
-          });
+          const hsKey = makeMapKey(sc, scC);
           if (hsDB[hsKey]) {
             patchMap[ha] = {type:'num', val:hsDB[hsKey]};
             hsFilled++;
@@ -1007,7 +996,7 @@ async function runRawConvert() {
         if (ea && ic && icC) {
           const engNow = readCell(inner, ea, ss.arr);
           if (!engNow || isF(engNow) || engNow.trim() === '.') {
-            const engKey = makeMapKey(normalizeCode(ic), normalizeColor(icC));
+            const engKey = makeMapKey(ic, icC);
             if (engDB[engKey]) {
               const si = ss.add(engDB[engKey]);
               patchMap[ea] = {type:'str', ssIdx:si};
@@ -1046,7 +1035,9 @@ if (missingHS.size > 0) {
           const newCol  = addrRemap[origCol];
           if (!newCol) continue;
           const newAddr = newCol + ri;
-          if (patch.type === 'num') {
+          if (patch.type === 'clear') {
+            out = patchClearCell(out, newAddr);
+          } else if (patch.type === 'num') {
             out = patchNumYellow(out, newAddr, patch.val, yellowFillIdx);
           } else {
             out = patchStrYellow(out, newAddr, patch.ssIdx, yellowFillIdx);
@@ -1124,6 +1115,18 @@ function addYellowStyle(stylesXml) {
   const finalStylesXml = newStylesXml.replace(xfsMatch[0], newXfs);
 
   return { newStylesXml: finalStylesXml, yellowFillIdx: xfCount }; // new xf is at index xfCount
+}
+
+// ── 셀 내용 지우기 (기존 값 삭제) ───────────────────────
+function patchClearCell(rowXml, addr) {
+  const re = new RegExp(`(<c\\b[^>]*\\br="${rxe(addr)}"[^>]*?)(?:/>|>[\\s\\S]*?<\\/c>)`, 'i');
+  if (re.test(rowXml)) {
+    return rowXml.replace(re, (_, open) => {
+      let o = open.replace(/\s+t="[^"]*"/g,'').replace(/\s+s="[^"]*"/g,'');
+      return `${o}/>`;
+    });
+  }
+  return rowXml;
 }
 
 // ── 노란색으로 셀 패치 ────────────────────────────────────
