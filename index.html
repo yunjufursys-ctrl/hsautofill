@@ -964,6 +964,7 @@ async function runRawConvert() {
       // ── 각 행 처리: 값 채우기 + 노란색 ──
       // Pass 1: 값 채울 셀 목록 수집
       const patchMap = {};
+      const sumRows = new Set(); // 합계행 번호
       // RAW 파일에서 세트색상, 단품색상 열 찾기
       const setColorCol  = Object.entries(headers).find(([,h]) => h === RAW_SET_COLOR_COL)?.[0];
       const itemColorCol = Object.entries(headers).find(([,h]) => h === RAW_ITEM_COLOR_COL)?.[0];
@@ -975,7 +976,11 @@ async function runRawConvert() {
         const scC = setColorCol  ? readCell(inner, setColorCol +ri, ss.arr) : '';
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
-        if (!sc && !ic) return;
+        if (!sc && !ic) {
+          // 세트코드/단품코드 없는 행 = 합계행
+          if (inner.includes('<v>')) sumRows.add(ri);
+          return;
+        }
         totalRows++;
         const ha = hsCol  ? hsCol +ri : null;
         const ea = engCol ? engCol+ri : null;
@@ -1016,6 +1021,18 @@ if (missingHS.size > 0) {
 
       // ── 신고서 서식 적용: 열너비 + 행/셀 스타일 ──
       xml = applyTemplateFormat(xml, yellowFillIdx);
+
+      // 합계행 서식 적용 (빨간색 배경/글꼴)
+      if (sumRows.size > 0) {
+        const TMPL_SUM_STYLE = {A:16,B:17,C:17,D:17,E:17,F:17,G:17,H:17,I:17,J:17,K:17,L:17,M:17,N:17,O:17,P:17,Q:17};
+        xml = xml.replace(/<row([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+          const rm = attrs.match(/r="(\d+)"/); if (!rm) return full;
+          const ri = parseInt(rm[1]);
+          if (!sumRows.has(ri)) return full;
+          const newInner = remapCellStyles(inner, TMPL_SUM_STYLE, -1);
+          return `<row ${TMPL_DATA_ROW_ATTRS(ri)}>${newInner}</row>`;
+        });
+      }
 
       // Pass 2: 노란색으로 값 패치 (서식 적용 이후)
       // patchMap의 key는 열 삭제 이전 주소 → 삭제 후 주소로 변환 필요
@@ -1286,16 +1303,8 @@ function applyTemplateFormat(xml, yellowXfIdx) {
       return `<row ${TMPL_ROW_HEADER_ATTRS}>${newInner}</row>`;
     }
 
-    const hasData = inner.includes('<v>') || inner.includes('<f>');
+    const hasData = inner.includes('<v>');
     if (!hasData) return full;
-
-    // 합계란: <v> 없고 <f>(수식)만 있는 행 → 빨간색 스타일
-    const hasSumFormula = !inner.includes('<v>') && inner.includes('<f>');
-    if (hasSumFormula) {
-      const TMPL_SUM_STYLE = {A:16,B:17,C:17,D:17,E:17,F:17,G:17,H:17,I:17,J:17,K:17,L:17,M:17,N:17,O:17,P:17,Q:17};
-      const newInner = remapCellStyles(inner, TMPL_SUM_STYLE, yellowXfIdx);
-      return `<row ${TMPL_DATA_ROW_ATTRS(rn)}>${newInner}</row>`;
-    }
 
     dataRowCount++;
     const styleMap = (dataRowCount % 2 === 1) ? TMPL_EVEN_STYLE : TMPL_ODD_STYLE;
