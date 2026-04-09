@@ -968,6 +968,7 @@ async function runRawConvert() {
       // RAW 파일에서 세트색상, 단품색상 열 찾기
       const setColorCol  = Object.entries(headers).find(([,h]) => h === RAW_SET_COLOR_COL)?.[0];
       const itemColorCol = Object.entries(headers).find(([,h]) => h === RAW_ITEM_COLOR_COL)?.[0];
+      const qtyCol       = Object.entries(headers).find(([,h]) => h === 'C/T')?.[0];
 
       xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
         const rm = attrs.match(/\br="(\d+)"/); if (!rm) return;
@@ -977,8 +978,9 @@ async function runRawConvert() {
         const ic  = itemCol      ? readCell(inner, itemCol     +ri, ss.arr) : '';
         const icC = itemColorCol ? readCell(inner, itemColorCol+ri, ss.arr) : '';
         if (!sc && !ic) {
-          // 세트코드/단품코드 없는 행 = 합계행
-          if (inner.includes('<v>')) {
+          // 코드 없음 + 수량 있음 = 합계행
+          const qty = qtyCol ? readCell(inner, qtyCol + ri, ss.arr) : '';
+          if (Number(qty) > 0) {
             sumRows.add(ri);
           }
           return;
@@ -1301,7 +1303,7 @@ function applyTemplateFormat(xml, yellowXfIdx, sumRows) {
       for (const col of cols) {
         const addr = col + rn;
         if (!newInner.includes(`r="${addr}"`)) {
-          newInner = insertCell(newInner, addr, `<c r="${addr}" t="str" s="17"><v> </v></c>`);
+          newInner = insertCell(newInner, addr, `<c r="${addr}" t="inlineStr" s="17"><is><t> </t></is></c>`);
         }
       }
       return `<row ${TMPL_DATA_ROW_ATTRS(rn)}>${newInner}</row>`;
