@@ -15,7 +15,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-async function getExistingMap(dbId, token) {
+async function getExistingMap(dbId, token, valuePropName) {
   const existing = {};
   let cursor;
   while (true) {
@@ -31,9 +31,9 @@ async function getExistingMap(dbId, token) {
     for (const page of data.results) {
       const props = page.properties;
       const titleProp = Object.values(props).find(p => p.type === 'title');
-      const textProp  = Object.values(props).find(p => p.type === 'rich_text');
+      const valueProp = props[valuePropName];
       const key = titleProp?.title?.map(t => t.plain_text).join('').trim();
-      const val = textProp?.rich_text?.map(t => t.plain_text).join('').trim();
+      const val = valueProp?.rich_text?.map(t => t.plain_text).join('').trim();
       if (key && val) existing[key] = val;
     }
     if (!data.has_more) break;
@@ -78,7 +78,7 @@ export async function onRequestPost(context) {
     const conflicts = [];
 
     if (Object.keys(hsMap).length > 0) {
-      const existing = await getExistingMap(hsDb, token);
+      const existing = await getExistingMap(hsDb, token, 'HS번호');
       const toAdd = [];
       for (const [key, data] of Object.entries(hsMap)) {
         if (existing[key]) {
@@ -99,7 +99,7 @@ export async function onRequestPost(context) {
     }
 
     if (Object.keys(engMap).length > 0) {
-      const existing = await getExistingMap(engDb, token);
+      const existing = await getExistingMap(engDb, token, '품명(영문)');
       const toAdd = [];
       for (const [key, data] of Object.entries(engMap)) {
         if (existing[key]) {
