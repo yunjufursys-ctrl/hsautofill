@@ -1301,7 +1301,7 @@ function applyTemplateFormat(xml, yellowXfIdx, sumRows) {
       for (const col of cols) {
         const addr = col + rn;
         if (!newInner.includes(`r="${addr}"`)) {
-          newInner = insertCell(newInner, addr, `<c r="${addr}" s="17"/>`);
+          newInner = insertCell(newInner, addr, `<c r="${addr}" t="str" s="17"><v> </v></c>`);
         }
       }
       return `<row ${TMPL_DATA_ROW_ATTRS(rn)}>${newInner}</row>`;
