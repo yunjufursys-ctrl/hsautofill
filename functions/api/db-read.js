@@ -1,10 +1,7 @@
 // Cloudflare Pages Function: Notion DB에서 매핑 데이터 읽기
-// HS번호: 세트코드|세트색상 복합키
-// 품명(영문): 단품코드|단품색상 복합키
-
 const NOTION_VERSION = '2022-06-28';
 
-async function queryDB(dbId, token) {
+async function queryDB(dbId, token, valuePropName) {
   const map = {};
   let cursor;
 
@@ -31,13 +28,16 @@ async function queryDB(dbId, token) {
 
     for (const page of data.results) {
       const props = page.properties;
-      // 매핑키 (title) = 복합키
+
+      // 매핑키: title 타입
       const titleProp = Object.values(props).find(p => p.type === 'title');
-      const textProp  = Object.values(props).find(p => p.type === 'rich_text');
-      if (!titleProp || !textProp) continue;
+      // 값: 이름으로 명시적으로 찾기
+      const valueProp = props[valuePropName];
+
+      if (!titleProp || !valueProp) continue;
 
       const key = titleProp.title.map(t => t.plain_text).join('').trim();
-      const val = textProp.rich_text.map(t => t.plain_text).join('').trim();
+      const val = valueProp.rich_text.map(t => t.plain_text).join('').trim();
       if (key && val) map[key] = val;
     }
 
@@ -53,7 +53,6 @@ export async function onRequest(context) {
   const hsDb   = context.env.NOTION_HS_DB;
   const engDb  = context.env.NOTION_ENG_DB;
 
-  // CORS preflight
   if (context.request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -65,8 +64,8 @@ export async function onRequest(context) {
 
   try {
     const [hs, eng] = await Promise.all([
-      queryDB(hsDb, token),
-      queryDB(engDb, token),
+      queryDB(hsDb, token, 'HS번호'),
+      queryDB(engDb, token, '품명(영문)'),
     ]);
 
     return new Response(JSON.stringify({ hs, eng }), {
