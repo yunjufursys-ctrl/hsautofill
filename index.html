@@ -208,8 +208,7 @@
         </div>
         <div id="refStatus" style="display:none;margin-top:12px;"></div>
 
-        <details style="margin-top:14px;">
-          <summary style="font-size:12px;color:var(--text2);cursor:pointer;user-select:none;">⚙️ 열 위치 설정 (기본값 권장)</summary>
+        <div style="display:none;">
           <div class="col-settings">
             <div class="field"><label>세트코드 열 번호</label><input type="number" id="colSET" value="3" min="1" max="50"></div>
             <div class="field"><label>세트색상 열 번호</label><input type="number" id="colSETCOLOR" value="4" min="1" max="50"></div>
@@ -219,7 +218,7 @@
             <div class="field"><label>품명(영문) 열 번호</label><input type="number" id="colENG" value="8" min="1" max="50"></div>
             <div class="field"><label>데이터 시작 행 번호</label><input type="number" id="dataStartRow" value="2" min="1" max="20"></div>
           </div>
-        </details>
+        </div>
 
         <div style="margin-top:16px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.2);border-radius:var(--radius);padding:12px 16px;font-size:12px;color:var(--text2);line-height:1.8;">
           <strong style="color:var(--accent)">🔗 팀 공유</strong><br>
@@ -229,7 +228,7 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-header">🗄️ 저장된 DB <button class="btn btn-danger btn-sm" onclick="clearDB()">전체 초기화</button></div>
+      <div class="card-header">🗄️ 저장된 DB</div>
       <div class="card-body" style="padding:0;">
         <div class="tabs">
           <div class="tab active" onclick="switchTab('hs')">HS번호 매핑</div>
