@@ -207,6 +207,22 @@
           <div class="drop-sub">.xlsx / .xls · 복수 선택 가능 · Notion DB에 자동 저장</div>
         </div>
         <div id="refStatus" style="display:none;margin-top:12px;"></div>
+        <div id="conflictPanel" style="display:none;margin-top:12px;">
+          <div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:8px;">⚠️ 충돌 항목 — 기존값 유지됨 (Notion에서 직접 수정하세요)</div>
+          <div style="overflow:auto;max-height:200px;border:1px solid rgba(255,77,106,.2);border-radius:var(--radius);">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="background:rgba(255,77,106,.08);">
+                  <th style="padding:7px 11px;text-align:left;color:var(--text2);border-bottom:1px solid rgba(255,77,106,.2);">구분</th>
+                  <th style="padding:7px 11px;text-align:left;color:var(--text2);border-bottom:1px solid rgba(255,77,106,.2);">복합키</th>
+                  <th style="padding:7px 11px;text-align:left;color:var(--text2);border-bottom:1px solid rgba(255,77,106,.2);">기존값</th>
+                  <th style="padding:7px 11px;text-align:left;color:var(--text2);border-bottom:1px solid rgba(255,77,106,.2);">신규값</th>
+                </tr>
+              </thead>
+              <tbody id="conflictTableBody"></tbody>
+            </table>
+          </div>
+        </div>
 
         <div style="display:none;">
           <div class="col-settings">
@@ -870,12 +886,24 @@ async function processRef(files) {
     const result = await _saveToNotion(newHS, newENG);
     const hsAdded  = result.hsAdded  ?? 0;
     const engAdded = result.engAdded ?? 0;
+    const conflictPanel = document.getElementById('conflictPanel');
+    const conflictBody  = document.getElementById('conflictTableBody');
     if (result.conflicts && result.conflicts.length > 0) {
       el.className = 'log-box log-warn';
-      el.textContent = `⚠️ 저장 완료 — HS ${hsAdded}건, 품명 ${engAdded}건 추가 (충돌 ${result.conflicts.length}건: Notion에서 직접 확인하세요)`;
+      el.textContent = `⚠️ 저장 완료 — HS ${hsAdded}건, 품명 ${engAdded}건 추가 (충돌 ${result.conflicts.length}건)`;
+      // 충돌 테이블 표시
+      conflictBody.innerHTML = result.conflicts.map(c => `
+        <tr style="border-bottom:1px solid rgba(255,77,106,.1);">
+          <td style="padding:6px 11px;color:var(--danger);font-weight:500;">${esc(c.type === 'HS' ? 'HS번호' : '품명(영문)')}</td>
+          <td style="padding:6px 11px;font-family:'DM Mono',monospace;font-size:10px;">${esc(c.key)}</td>
+          <td style="padding:6px 11px;color:var(--text2);">${esc(c.oldValue)}</td>
+          <td style="padding:6px 11px;color:var(--warn);">${esc(c.newValue)}</td>
+        </tr>`).join('');
+      conflictPanel.style.display = 'block';
     } else {
       el.className = 'log-box log-ok';
       el.textContent = `✅ 저장 완료 — HS ${hsAdded}건, 품명 ${engAdded}건 추가`;
+      conflictPanel.style.display = 'none';
     }
   } catch(e) {
     el.className = 'log-box log-warn';
