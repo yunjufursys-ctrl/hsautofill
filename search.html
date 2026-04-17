@@ -66,6 +66,46 @@
 
 <script>
 const API = '/api/db-read';
+
+const HS_CLASS = {
+  '9401391000': '의자 - 회전 가능 / 가죽',
+  '9401399000': '의자 - 회전 가능 / 기타',
+  '9401791000': '의자 - 회전 불가 / 가죽',
+  '9401799000': '의자 - 회전 불가 / 기타',
+  '9401800000': '스툴',
+  '9401611000': '소파 - 목재 / 가죽',
+  '9401619000': '소파 - 목재 / 기타',
+  '9401711000': '소파 - 기타 / 가죽',
+  '9401719000': '소파 - 기타 / 기타',
+  '9401910000': '의자 부분품 - 목재',
+  '9401991000': '의자 부분품 - 금속',
+  '9401999000': '의자 부분품 - 기타',
+  '9403301000': '오피스 가구 - 책상/테이블 / 목재',
+  '9403309000': '오피스 가구 - 목재 기타 완제품 (캐비닛, 서랍 등)',
+  '9403100000': '오피스 가구 - 금속 완제품',
+  '9403910000': '오피스 가구 - 목재 부분품',
+  '9403990000': '오피스 가구 - 기타 부분품',
+  '7009910000': '전신거울',
+  '9404900000': '유아용 놀이매트 / 벤치쿠션',
+  '6303990000': '침대커튼',
+  '9405210000': '조명',
+  '9503003919': '놀이용 텐트',
+  '9610009000': '화이트보드',
+  '7326909000': '연필꽂이 / 철',
+  '3926909000': '북엔드 / 플라스틱',
+  '9403609090': '가정용 목재 기타 가구',
+  '9403609030': '옷장',
+  '9401809000': '아기의자',
+  '9403501000': '침대 프레임',
+  '9404290000': '매트리스',
+};
+
+function getHsClass(hs) {
+  if (!hs) return null;
+  const s = String(hs).replace(/\D/g, '');
+  return HS_CLASS[s] || null;
+}
+
 const _cache = { hs:{}, eng:{} };
 let loaded = false;
 
@@ -136,8 +176,13 @@ function doSearch(query) {
           <div class="code-sub">색상: ${esc(setColor)}</div>
         </div>
         <div class="value-wrap">
-          <span class="tag-hs">${esc(hs)}</span>
-          <button class="copy-btn" onclick="copyText('${esc(hs)}')" title="복사">📋</button>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="tag-hs">${esc(hs)}</span>
+              <button class="copy-btn" onclick="copyText('${esc(hs)}')" title="복사">📋</button>
+            </div>
+            ${getHsClass(hs) ? `<span style="font-size:10px;color:var(--text3);text-align:right;">${esc(getHsClass(hs))}</span>` : ''}
+          </div>
         </div>
       </div>`;
     });
