@@ -39,6 +39,20 @@
   mark{background:rgba(45,122,95,.2);color:var(--accent);border-radius:2px;}
   .loading{text-align:center;padding:40px;color:var(--text3);font-size:13px;}
   .db-info{font-size:11px;color:var(--text3);text-align:right;margin-bottom:16px;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;}
+  .modal-overlay.active{display:flex;}
+  .modal{background:#fff;border-radius:12px;padding:28px;max-width:480px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.15);}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  .modal-title{font-size:13px;font-weight:600;color:var(--text2);}
+  .modal-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:2px 6px;border-radius:4px;}
+  .modal-close:hover{color:var(--text);}
+  .modal-hs{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;color:#1a5fa8;margin-bottom:20px;}
+  .modal-row{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .modal-row:last-child{border-bottom:none;}
+  .modal-label{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;}
+  .modal-value{font-size:13px;color:var(--text);line-height:1.5;}
+  .hs-btn{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;}
+  .hs-btn:hover{color:#0d47a1;}
 </style>
 </head>
 <body>
@@ -64,50 +78,204 @@
   </div>
 </div>
 
+<!-- HS Code 상세 팝업 -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📋 관세청 세번 상세</span>
+      <button class="modal-close" onclick="hideModal()">✕</button>
+    </div>
+    <div class="modal-hs" id="modalHs"></div>
+    <div id="modalBody"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button onclick="copyModalHs()" style="background:rgba(26,95,168,.1);color:#1a5fa8;border:none;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;">📋 코드 복사</button>
+    </div>
+  </div>
+</div>
 <script>
 const API = '/api/db-read';
 
-const HS_CLASS = {
-  '9401391000': '의자 - 회전 가능 / 가죽',
-  '9401399000': '의자 - 회전 가능 / 기타',
-  '9401791000': '의자 - 회전 불가 / 가죽',
-  '9401799000': '의자 - 회전 불가 / 기타',
-  '9401800000': '스툴',
-  '9401611000': '소파 - 목재 / 가죽',
-  '9401619000': '소파 - 목재 / 기타',
-  '9401711000': '소파 - 기타 / 가죽',
-  '9401719000': '소파 - 기타 / 기타',
-  '9401910000': '의자 부분품 - 목재',
-  '9401991000': '의자 부분품 - 금속',
-  '9401999000': '의자 부분품 - 기타',
-  '9403301000': '오피스 가구 - 책상/테이블 / 목재',
-  '9403309000': '오피스 가구 - 목재 기타 완제품 (캐비닛, 서랍 등)',
-  '9403100000': '오피스 가구 - 금속 완제품',
-  '9403910000': '오피스 가구 - 목재 부분품',
-  '9403990000': '오피스 가구 - 기타 부분품',
-  '7009910000': '전신거울',
-  '9404900000': '유아용 놀이매트 / 벤치쿠션',
-  '6303990000': '침대커튼',
-  '9405210000': '조명',
-  '9503003919': '놀이용 텐트',
-  '9610009000': '화이트보드',
-  '7326909000': '연필꽂이 / 철',
-  '3926909000': '북엔드 / 플라스틱',
-  '9403609090': '가정용 목재 기타 가구',
-  '9403609030': '옷장',
-  '9401809000': '아기의자',
-  '9403501000': '침대 프레임',
-  '9404290000': '매트리스',
+const HS_DATA = {
+  "9401391000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "가죽으로 덮어씌운 것"
+  },
+  "9401399000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "기타"
+  },
+  "9401791000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "가죽으로 덮어씌운 것"
+  },
+  "9401799000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "기타"
+  },
+  "9401800000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "",
+    "cat10": "그 밖의 의자"
+  },
+  "9401611000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "의자의 속·용수철·커버 등을 댄 것",
+    "cat10": "가죽으로 덮어씌운 것"
+  },
+  "9401619000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "의자의 속·용수철·커버 등을 댄 것",
+    "cat10": "기타"
+  },
+  "9401711000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "의자의 속·용수철·커버 등을 댄 것",
+    "cat10": "가죽으로 덮어씌운 것"
+  },
+  "9401719000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "의자의 속·용수철·커버 등을 댄 것",
+    "cat10": "기타"
+  },
+  "9401910000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "",
+    "cat10": "목재로 만든 것"
+  },
+  "9401991000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "금속으로 만든 것"
+  },
+  "9401999000": {
+    "cat4": "의자(침대로 겸용할 수 있는지에 상관없으며 제9402호의 것은 제외한다)와 그 부분품",
+    "cat6": "기타",
+    "cat10": "기타"
+  },
+  "9403301000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "사무실용 목제가구",
+    "cat10": "책상"
+  },
+  "9403309000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "사무실용 목제가구",
+    "cat10": "기타"
+  },
+  "9403100000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "",
+    "cat10": "금속으로 만든 사무실용 가구"
+  },
+  "9403910000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "",
+    "cat10": "목재로 만든 것"
+  },
+  "9403990000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "",
+    "cat10": "기타"
+  },
+  "7009910000": {
+    "cat4": "유리거울(백미러를 포함하며, 틀을 붙인 것인지에 상관없다)",
+    "cat6": "",
+    "cat10": "틀이 붙지 않은 것"
+  },
+  "9404900000": {
+    "cat4": "매트리스 서포트, 침구와 이와 유사한 물품",
+    "cat6": "",
+    "cat10": "기타"
+  },
+  "6303990000": {
+    "cat4": "커튼·실내용 블라인드, 커튼이나 침대용 밸런스",
+    "cat6": "",
+    "cat10": "그 밖의 방직용 섬유로 만든 것"
+  },
+  "9405210000": {
+    "cat4": "조명기구",
+    "cat6": "",
+    "cat10": "발광다이오드(LED) 광원에 전용되도록 설계된 것"
+  },
+  "9503003919": {
+    "cat4": "완구류",
+    "cat6": "바퀴달린 완구, 인형, 퍼즐 등",
+    "cat10": "기타"
+  },
+  "7326909000": {
+    "cat4": "철강으로 만든 그 밖의 제품",
+    "cat6": "기타",
+    "cat10": "기타"
+  },
+  "3926909000": {
+    "cat4": "플라스틱으로 만든 그 밖의 제품",
+    "cat6": "기타",
+    "cat10": "기타"
+  },
+  "9403609090": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "그 밖의 목제가구",
+    "cat10": "기타"
+  },
+  "9403609030": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "그 밖의 목제가구",
+    "cat10": "장롱"
+  },
+  "9403501000": {
+    "cat4": "그 밖의 가구와 그 부분품",
+    "cat6": "침실용 목제가구",
+    "cat10": "침대"
+  },
+  "9404290000": {
+    "cat4": "매트리스 서포트, 침구와 이와 유사한 물품",
+    "cat6": "",
+    "cat10": "그 밖의 재료로 만든 것"
+  }
 };
 
 function getHsClass(hs) {
   if (!hs) return null;
   const s = String(hs).replace(/\D/g, '');
-  return HS_CLASS[s] || null;
+  return HS_DATA[s] || null;
 }
 
 const _cache = { hs:{}, eng:{} };
 let loaded = false;
+
+
+function showModal(hs) {
+  const data = getHsClass(hs);
+  document.getElementById('modalHs').textContent = hs;
+  const body = document.getElementById('modalBody');
+  if (!data) {
+    body.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 0;">관세청 데이터가 없습니다.</div>';
+  } else {
+    let html = '';
+    if (data.cat4) html += `<div class="modal-row"><div class="modal-label">4단위 품목명</div><div class="modal-value">${esc(data.cat4)}</div></div>`;
+    if (data.cat6) html += `<div class="modal-row"><div class="modal-label">6단위 품목명</div><div class="modal-value">${esc(data.cat6)}</div></div>`;
+    if (data.cat10) html += `<div class="modal-row"><div class="modal-label">10단위 품목명</div><div class="modal-value">${esc(data.cat10)}</div></div>`;
+    body.innerHTML = html;
+  }
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function hideModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) hideModal();
+}
+
+function copyModalHs() {
+  const hs = document.getElementById('modalHs').textContent;
+  navigator.clipboard.writeText(hs);
+}
 
 async function loadDB() {
   try {
@@ -178,10 +346,10 @@ function doSearch(query) {
         <div class="value-wrap">
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
             <div style="display:flex;align-items:center;gap:6px;">
-              <span class="tag-hs">${esc(hs)}</span>
+              <span class="tag-hs hs-btn" onclick="showModal('${esc(hs)}')">🔍 ${esc(hs)}</span>
               <button class="copy-btn" onclick="copyText('${esc(hs)}')" title="복사">📋</button>
             </div>
-            ${getHsClass(hs) ? `<span style="font-size:10px;color:var(--text3);text-align:right;">${esc(getHsClass(hs))}</span>` : ''}
+
           </div>
         </div>
       </div>`;
