@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제품 코드 검색</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:#faf8f5;--surface:#ffffff;--surface2:#f3f0eb;--border:#e2ddd6;
+    --accent:#2d7a5f;--accent2:#1a5fa8;--text:#2c2825;--text2:#7a6e65;
+    --text3:#b0a89e;--radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:14px;min-height:100vh;}
+  header{border-bottom:1px solid var(--border);padding:0 28px;display:flex;align-items:center;gap:12px;height:56px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#2d7a5f,#1a5fa8);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:#fff;}
+  .logo-text{font-size:14px;font-weight:600;}
+  .main{max-width:800px;margin:0 auto;padding:36px 20px;}
+  .search-wrap{display:flex;gap:8px;margin-bottom:24px;}
+  .search-input{flex:1;background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;transition:border-color .15s;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+  .search-input:focus{border-color:var(--accent);}
+  .clear-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:0 14px;cursor:pointer;color:var(--text2);font-size:13px;transition:all .15s;}
+  .clear-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .status{text-align:center;padding:60px 20px;color:var(--text3);font-size:13px;}
+  .status-icon{font-size:32px;margin-bottom:12px;opacity:.4;}
+  .section-title{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;padding:0 2px;}
+  .result-group{margin-bottom:20px;}
+  .result-item{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;gap:12px;margin-bottom:6px;transition:border-color .15s;}
+  .result-item:hover{border-color:var(--accent);}
+  .code-info{display:flex;flex-direction:column;gap:3px;}
+  .code-main{font-family:'DM Mono',monospace;font-size:13px;color:var(--text);}
+  .code-sub{font-size:11px;color:var(--text3);}
+  .value-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .tag-hs{background:rgba(26,95,168,.1);color:#1a5fa8;font-family:'DM Mono',monospace;font-size:12px;padding:4px 12px;border-radius:4px;}
+  .tag-eng{background:rgba(45,122,95,.1);color:#2d7a5f;font-family:'DM Mono',monospace;font-size:12px;padding:4px 12px;border-radius:4px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .copy-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:3px 7px;border-radius:4px;transition:color .15s;}
+  .copy-btn:hover{color:var(--accent);}
+  mark{background:rgba(45,122,95,.2);color:var(--accent);border-radius:2px;}
+  .loading{text-align:center;padding:40px;color:var(--text3);font-size:13px;}
+  .db-info{font-size:11px;color:var(--text3);text-align:right;margin-bottom:16px;}
+</style>
+</head>
+<body>
+<header>
+  <img src="/logo.svg" alt="FURSYS" style="height:24px;width:auto;object-fit:contain;display:block;">
+  <div class="logo-text">제품 코드 검색</div>
+</header>
+
+<div class="main">
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="searchInput"
+      placeholder="세트코드 또는 단품코드 입력 (예: CAC082DN, LF8001...)"
+      oninput="doSearch(this.value)"
+      autofocus>
+    <button class="clear-btn" onclick="clearSearch()">✕ 지우기</button>
+  </div>
+  <div class="db-info" id="dbInfo">DB 로딩 중...</div>
+  <div id="results">
+    <div class="status">
+      <div class="status-icon">🔍</div>
+      코드를 입력하면 HS번호와 품명(영문)을 조회합니다
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/db-read';
+const _cache = { hs:{}, eng:{} };
+let loaded = false;
+
+async function loadDB() {
+  try {
+    const res = await fetch(API);
+    if (!res.ok) throw new Error('DB 로드 실패');
+    const data = await res.json();
+    _cache.hs  = data.hs  || {};
+    _cache.eng = data.eng || {};
+    loaded = true;
+    const total = Object.keys(_cache.hs).length + Object.keys(_cache.eng).length;
+    document.getElementById('dbInfo').textContent = `HS번호 ${Object.keys(_cache.hs).length}건 · 품명(영문) ${Object.keys(_cache.eng).length}건 로드됨`;
+    const q = document.getElementById('searchInput').value;
+    if (q) doSearch(q);
+  } catch(e) {
+    document.getElementById('dbInfo').textContent = 'DB 로드 실패 — 새로고침해주세요';
+  }
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(text, q) {
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0,i)) + `<mark>${esc(text.slice(i,i+q.length))}</mark>` + esc(text.slice(i+q.length));
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // 간단한 피드백
+  });
+}
+
+function doSearch(query) {
+  const wrap = document.getElementById('results');
+  const q = (query || '').trim();
+
+  if (!q) {
+    wrap.innerHTML = `<div class="status"><div class="status-icon">🔍</div>코드를 입력하면 HS번호와 품명(영문)을 조회합니다</div>`;
+    return;
+  }
+
+  if (!loaded) {
+    wrap.innerHTML = `<div class="loading">DB 로딩 중...</div>`;
+    return;
+  }
+
+  const ql = q.toLowerCase();
+  const hsResults  = Object.entries(_cache.hs).filter(([k]) => k.toLowerCase().includes(ql));
+  const engResults = Object.entries(_cache.eng).filter(([k]) => k.toLowerCase().includes(ql));
+
+  if (!hsResults.length && !engResults.length) {
+    wrap.innerHTML = `<div class="status"><div class="status-icon">😶</div>"<strong>${esc(q)}</strong>" 에 해당하는 코드가 없습니다</div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (hsResults.length > 0) {
+    html += `<div class="result-group"><div class="section-title">HS번호 매핑 — ${hsResults.length}건</div>`;
+    hsResults.slice(0, 100).forEach(([code, hs]) => {
+      const parts = code.split('|');
+      const setCode = parts[0]||'', setColor = parts[1]||'';
+      html += `<div class="result-item">
+        <div class="code-info">
+          <div class="code-main">${highlight(setCode, q)}</div>
+          <div class="code-sub">색상: ${esc(setColor)}</div>
+        </div>
+        <div class="value-wrap">
+          <span class="tag-hs">${esc(hs)}</span>
+          <button class="copy-btn" onclick="copyText('${esc(hs)}')" title="복사">📋</button>
+        </div>
+      </div>`;
+    });
+    if (hsResults.length > 100) html += `<div style="text-align:center;font-size:11px;color:var(--text3);padding:8px;">... 외 ${hsResults.length-100}건</div>`;
+    html += `</div>`;
+  }
+
+  if (engResults.length > 0) {
+    html += `<div class="result-group"><div class="section-title">품명(영문) 매핑 — ${engResults.length}건</div>`;
+    engResults.slice(0, 100).forEach(([code, eng]) => {
+      const parts = code.split('|');
+      const itemCode = parts[0]||'', itemColor = parts[1]||'';
+      html += `<div class="result-item">
+        <div class="code-info">
+          <div class="code-main">${highlight(itemCode, q)}</div>
+          <div class="code-sub">색상: ${esc(itemColor)}</div>
+        </div>
+        <div class="value-wrap">
+          <span class="tag-eng" title="${esc(eng)}">${esc(eng)}</span>
+          <button class="copy-btn" onclick="copyText('${esc(eng)}')" title="복사">📋</button>
+        </div>
+      </div>`;
+    });
+    if (engResults.length > 100) html += `<div style="text-align:center;font-size:11px;color:var(--text3);padding:8px;">... 외 ${engResults.length-100}건</div>`;
+    html += `</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  doSearch('');
+  document.getElementById('searchInput').focus();
+}
+
+loadDB();
+</script>
+</body>
+</html>
