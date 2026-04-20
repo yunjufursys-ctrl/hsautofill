@@ -984,8 +984,6 @@ async function runRawConvert() {
       log2('info', `삭제 열: ${[...deleteCols].sort().join(', ')}`);
 
       const hsCol   = Object.entries(headers).find(([,h])=>h===RAW_HS_COL)?.[0];
-      // HS번호 열도 삭제 (DB값으로 새로 채울 예정)
-      if (hsCol) deleteCols.add(hsCol);
       const engCol  = Object.entries(headers).find(([,h])=>h===RAW_ENG_COL)?.[0];
       const setCol  = Object.entries(headers).find(([,h])=>h===RAW_SET_COL)?.[0];
       const itemCol = Object.entries(headers).find(([,h])=>h===RAW_ITEM_COL)?.[0];
@@ -1050,6 +1048,18 @@ if (missingHS.size > 0) {
     `${[...missingHS].slice(0,5).join(', ')}` +
     `${missingHS.size > 5 ? '...' : ''}`;
 }
+      // ── HS번호 열 데이터 초기화 (헤더 제외, 2행부터 전체 삭제) ──
+      if (hsCol) {
+        xml = xml.replace(/<row([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+          const rM = attrs.match(/r="(\d+)"/); if (!rM) return full;
+          const rn = parseInt(rM[1]); if (rn <= 1) return full;
+          // HS번호 열 셀 제거
+          const re = new RegExp(`<c\b[^>]*\br="${rxe(hsCol + rn)}"[^>]*?>?[\s\S]*?<\/c>|<c\b[^>]*\br="${rxe(hsCol + rn)}"[^>]*/>`,'i');
+          const newInner = inner.replace(re, '');
+          return `<row ${attrs}>${newInner}</row>`;
+        });
+      }
+
       // ── 열 삭제: XML에서 삭제 열 셀 제거 + 주소 재매핑 ──
       xml = deleteColumnsFromXml(xml, deleteCols);
 
