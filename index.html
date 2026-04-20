@@ -1049,14 +1049,51 @@ if (missingHS.size > 0) {
     `${missingHS.size > 5 ? '...' : ''}`;
 }
       // ── HS번호 열 데이터 초기화 (헤더 제외, 2행부터 전체 삭제) ──
+      // tokenizer 방식으로 안정적으로 처리
       if (hsCol) {
-        xml = xml.replace(/<row([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
-          const rM = attrs.match(/r="(\d+)"/); if (!rM) return full;
+        const hsColNum = ln(hsCol);
+        console.log('HS COL:', hsCol, '헤더 목록:', JSON.stringify(headers));
+        console.log('초기화 대상 셀 존재 여부:', xml.includes(hsCol + '2'));
+        xml = xml.replace(/<row\b([^>]*)>([\s\S]*?)<\/row>/g, (full, attrs, inner) => {
+          const rM = attrs.match(/\br="(\d+)"/); if (!rM) return full;
           const rn = parseInt(rM[1]); if (rn <= 1) return full;
-          // HS번호 열 셀 제거
-          const re = new RegExp(`<c\b[^>]*\br="${rxe(hsCol + rn)}"[^>]*?>?[\s\S]*?<\/c>|<c\b[^>]*\br="${rxe(hsCol + rn)}"[^>]*/>`,'i');
-          const newInner = inner.replace(re, '');
-          return `<row ${attrs}>${newInner}</row>`;
+          let result = '';
+          let i = 0;
+          while (i < inner.length) {
+            if (inner[i] !== '<') { i++; continue; }
+            if (inner.slice(i, i+2) !== '<c') {
+              const end = inner.indexOf('>', i);
+              if (end < 0) { result += inner.slice(i); break; }
+              result += inner.slice(i, end + 1); i = end + 1; continue;
+            }
+            const next = inner[i+2];
+            if (next !== ' ' && next !== '/' && next !== '>') {
+              const end = inner.indexOf('>', i);
+              if (end < 0) { result += inner.slice(i); break; }
+              result += inner.slice(i, end + 1); i = end + 1; continue;
+            }
+            const scEnd = findSelfCloseEnd(inner, i);
+            let cellAttrs, cellInner, isSelfClose, cellEnd;
+            if (scEnd >= 0) {
+              cellAttrs = inner.slice(i + 2, scEnd - 1).trim();
+              cellInner = null; isSelfClose = true; cellEnd = scEnd + 1;
+            } else {
+              const gtPos = inner.indexOf('>', i);
+              if (gtPos < 0) { result += inner.slice(i); break; }
+              const closePos = inner.indexOf('</c>', gtPos);
+              if (closePos < 0) { result += inner.slice(i); break; }
+              cellAttrs = inner.slice(i + 2, gtPos).trim();
+              cellInner = inner.slice(gtPos + 1, closePos);
+              isSelfClose = false; cellEnd = closePos + 4;
+            }
+            const addrM = cellAttrs.match(/\br="([A-Z]+)(\d+)"/);
+            if (addrM && ln(addrM[1]) === hsColNum) {
+              i = cellEnd; continue; // HS열 셀 제거
+            }
+            result += isSelfClose ? `<c ${cellAttrs}/>` : `<c ${cellAttrs}>${cellInner}</c>`;
+            i = cellEnd;
+          }
+          return `<row ${attrs}>${result}</row>`;
         });
       }
 
