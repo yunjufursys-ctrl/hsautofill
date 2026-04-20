@@ -96,7 +96,7 @@
 <body>
 <header>
   <div class="logo">
-    <div class="logo-mark">HS</div>
+    <img src="/logo.svg" alt="FURSYS" style="height:36px;width:auto;object-fit:contain;display:block;">
     <div class="logo-text">수출신고서 자동완성</div>
   </div>
   <nav>
@@ -981,6 +981,8 @@ async function runRawConvert() {
           .filter(([,h]) => RAW_DELETE_COLS.has(h))
           .map(([c]) => c)
       );
+      // HS번호 열도 삭제 (DB값으로 새로 채울 예정)
+      if (hsCol) deleteCols.add(hsCol);
       log2('info', `삭제 열: ${[...deleteCols].sort().join(', ')}`);
 
       const hsCol   = Object.entries(headers).find(([,h])=>h===RAW_HS_COL)?.[0];
@@ -1013,6 +1015,7 @@ async function runRawConvert() {
           return;
         }
         totalRows++;
+
         const ha = hsCol  ? hsCol +ri : null;
         const ea = engCol ? engCol+ri : null;
 
