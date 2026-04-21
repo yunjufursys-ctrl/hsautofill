@@ -258,6 +258,30 @@
 </div>
 
 <script>
+// ════════════════════════════════════════
+// ★ 핵심 정의 (이 4개가 누락되어 있었음 — 복원)
+// ════════════════════════════════════════
+const IDB = { hs:'hs_map', eng:'eng_map' };
+
+// 복합키 생성: '세트코드|세트색상' 형태
+function makeMapKey(code1, code2) {
+  return [code1, code2]
+    .map(v => String(v || '').trim().toUpperCase())
+    .join('|');
+}
+
+// 인메모리 캐시
+const _cache = { hs:{}, eng:{} };
+
+// API 엔드포인트 (Cloudflare Pages Functions)
+const API = {
+  read:  '/api/db-read',
+  write: '/api/db-write'
+};
+
+// ════════════════════════════════════════
+// Notion 연동 — 데이터 손실 방어 코드 포함
+// ════════════════════════════════════════
 async function _loadFromNotion() {
   const res = await fetch(API.read);
   if (!res.ok) throw new Error(`DB 로드 실패: ${res.status}`);
