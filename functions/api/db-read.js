@@ -1,5 +1,5 @@
 // refresh
-const NOTION_VERSION = '2022-06-28';
+const NOTION_VERSION = '2025-09-03';
 
 // Notion rate limit 대응: 요청 사이 짧은 딜레이
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
