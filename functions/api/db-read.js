@@ -1,3 +1,4 @@
+// refresh
 const NOTION_VERSION = '2022-06-28';
 
 // Notion rate limit 대응: 요청 사이 짧은 딜레이
@@ -24,7 +25,7 @@ async function fetchPageWithRetry(dbId, token, cursor, maxRetries = 3) {
     if (res.status === 429 || res.status >= 500) {
       const retryAfter = parseInt(res.headers.get('Retry-After') || '1');
       const waitMs = Math.min(retryAfter * 1000, 5000) * (attempt + 1);
-      console.warn(`Notion ${res.status} → ${waitMs}ms 대기 후 재시도 (${attempt+1}/${maxRetries})`);
+      console.warn(`Notion ${res.status} → ${waitMs}ms 대기 후 재시도 (${attempt + 1}/${maxRetries})`);
       await sleep(waitMs);
       continue;
     }
@@ -47,8 +48,10 @@ async function queryDB(dbId, token, valuePropName) {
 
     for (const page of data.results) {
       const props = page.properties;
+
       const titleProp = Object.values(props).find(p => p.type === 'title');
       const valueProp = props[valuePropName];
+
       if (!titleProp || !valueProp) continue;
 
       const key = titleProp.title.map(t => t.plain_text).join('').trim();
