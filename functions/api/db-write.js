@@ -41,7 +41,7 @@ async function getExistingMap(dbId, token, valuePropName) {
   while (true) {
     const body = { page_size: 100 };
     if (cursor) body.start_cursor = cursor;
-    const res = await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}/query`, {
+    const res = await fetchWithRetry(`https://api.notion.com/v1/data_sources/{id}/query`, {
       method: 'POST',
       headers: makeHeaders(token),
       body: JSON.stringify(body),
