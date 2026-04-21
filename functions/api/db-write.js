@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: Notion DB에 매핑 데이터 저장
+// Notion API 2025-09-03 — multi-data-source 대응
 const NOTION_VERSION = '2025-09-03';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -17,7 +17,6 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// 429 / 5xx 자동 재시도가 포함된 fetch
 async function fetchWithRetry(url, options, maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const res = await fetch(url, options);
@@ -29,44 +28,83 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
       await sleep(waitMs);
       continue;
     }
-    return res; // 그 외 에러는 호출자가 처리
+    return res;
   }
   throw new Error(`Notion API: ${maxRetries}회 재시도 후 실패`);
 }
 
+// Database에 속한 data source ID들 조회 → 첫 번째(=주 data source) 반환
+async function getPrimaryDataSourceId(dbId, token) {
+  const res = await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}`, {
+    method: 'GET',
+    headers: makeHeaders(token),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Database 조회 실패: ${res.status} ${err}`);
+  }
+  const data = await res.json();
+  const dataSources = data.data_sources || [];
+  if (dataSources.length === 0) {
+    throw new Error(`Database ${dbId}에 data source 없음`);
+  }
+  // 신규 page는 항상 첫 번째 data source에 추가
+  const primary = dataSources[0];
+  console.log(`[getPrimaryDataSourceId] DB ${dbId.slice(0,8)} → 주 data source: ${primary.id.slice(0,8)} (${primary.name || 'unnamed'})`);
+  return primary.id;
+}
+
+// 모든 data source query (기존 항목 조회용)
 async function getExistingMap(dbId, token, valuePropName) {
   const existing = {};
-  let cursor;
-  let pageCount = 0;
-  while (true) {
-    const body = { page_size: 100 };
-    if (cursor) body.start_cursor = cursor;
-    const res = await fetchWithRetry(`https://api.notion.com/v1/data_sources/{id}/query`, {
-      method: 'POST',
-      headers: makeHeaders(token),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    pageCount++;
-    for (const page of data.results) {
-      const props = page.properties;
-      const titleProp = Object.values(props).find(p => p.type === 'title');
-      const valueProp = props[valuePropName];
-      const key = titleProp?.title?.map(t => t.plain_text).join('').trim();
-      const val = valueProp?.rich_text?.map(t => t.plain_text).join('').trim();
-      if (key && val) existing[key] = val;
+
+  // 모든 data source 가져오기
+  const res = await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}`, {
+    method: 'GET',
+    headers: makeHeaders(token),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const dbData = await res.json();
+  const dataSourceIds = (dbData.data_sources || []).map(d => d.id);
+
+  for (const dsId of dataSourceIds) {
+    let cursor;
+    let pageCount = 0;
+    while (true) {
+      const body = { page_size: 100 };
+      if (cursor) body.start_cursor = cursor;
+      const r = await fetchWithRetry(
+        `https://api.notion.com/v1/data_sources/${dsId}/query`,
+        {
+          method: 'POST',
+          headers: makeHeaders(token),
+          body: JSON.stringify(body),
+        }
+      );
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      pageCount++;
+      for (const page of data.results) {
+        const props = page.properties;
+        const titleProp = Object.values(props).find(p => p.type === 'title');
+        const valueProp = props[valuePropName];
+        const key = titleProp?.title?.map(t => t.plain_text).join('').trim();
+        const val = valueProp?.rich_text?.map(t => t.plain_text).join('').trim();
+        if (key && val) existing[key] = val;
+      }
+      if (!data.has_more) break;
+      cursor = data.next_cursor;
+      await sleep(350);
     }
-    if (!data.has_more) break;
-    cursor = data.next_cursor;
-    // 페이지 사이 350ms 대기 — Notion rate limit 회피
-    await sleep(350);
+    console.log(`[getExistingMap] DS ${dsId.slice(0,8)}: ${pageCount}페이지 처리`);
   }
-  console.log(`[getExistingMap] ${valuePropName}: ${pageCount}페이지, ${Object.keys(existing).length}건`);
+
+  console.log(`[getExistingMap] ${valuePropName}: 합계 ${Object.keys(existing).length}건`);
   return existing;
 }
 
-async function addPage(dbId, token, titlePropName, valuePropName, extraProps, key, value) {
+// 새 page 생성 (parent를 data_source_id로)
+async function addPage(dataSourceId, token, titlePropName, valuePropName, extraProps, key, value) {
   const properties = {
     [titlePropName]: { title: [{ text: { content: key } }] },
     [valuePropName]: { rich_text: [{ text: { content: value } }] },
@@ -77,7 +115,10 @@ async function addPage(dbId, token, titlePropName, valuePropName, extraProps, ke
   const res = await fetchWithRetry('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: makeHeaders(token),
-    body: JSON.stringify({ parent: { database_id: dbId }, properties }),
+    body: JSON.stringify({
+      parent: { type: 'data_source_id', data_source_id: dataSourceId },
+      properties
+    }),
   });
   if (!res.ok) throw new Error(await res.text());
 }
@@ -102,6 +143,7 @@ export async function onRequestPost(context) {
     const conflicts = [];
 
     if (Object.keys(hsMap).length > 0) {
+      const hsDataSourceId = await getPrimaryDataSourceId(hsDb, token);
       const existing = await getExistingMap(hsDb, token, 'HS번호');
       const toAdd = [];
       for (const [key, data] of Object.entries(hsMap)) {
@@ -111,11 +153,11 @@ export async function onRequestPost(context) {
           toAdd.push([key, data]);
         }
       }
-      // ★ 동시 요청 3개로 제한 + chunk 사이 350ms 대기
+      // 동시 요청 3개로 제한 + chunk 사이 350ms 대기
       for (let i = 0; i < toAdd.length; i += 3) {
         await Promise.all(
           toAdd.slice(i, i + 3).map(([key, data]) =>
-            addPage(hsDb, token, '매핑키', 'HS번호',
+            addPage(hsDataSourceId, token, '매핑키', 'HS번호',
               { '세트코드': data.setCode, '세트색상': data.setColor }, key, data.hs)
           )
         );
@@ -125,6 +167,7 @@ export async function onRequestPost(context) {
     }
 
     if (Object.keys(engMap).length > 0) {
+      const engDataSourceId = await getPrimaryDataSourceId(engDb, token);
       const existing = await getExistingMap(engDb, token, '품명(영문)');
       const toAdd = [];
       for (const [key, data] of Object.entries(engMap)) {
@@ -134,11 +177,10 @@ export async function onRequestPost(context) {
           toAdd.push([key, data]);
         }
       }
-      // ★ 동시 요청 3개로 제한 + chunk 사이 350ms 대기
       for (let i = 0; i < toAdd.length; i += 3) {
         await Promise.all(
           toAdd.slice(i, i + 3).map(([key, data]) =>
-            addPage(engDb, token, '매핑키', '품명(영문)',
+            addPage(engDataSourceId, token, '매핑키', '품명(영문)',
               { '단품코드': data.itemCode, '단품색상': data.itemColor }, key, data.eng)
           )
         );
@@ -151,6 +193,7 @@ export async function onRequestPost(context) {
       headers: { 'Content-Type': 'application/json', ...CORS },
     });
   } catch (e) {
+    console.error('[db-write] 에러:', e.message);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...CORS },
