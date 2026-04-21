@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: Notion DB에 매핑 데이터 저장
-const NOTION_VERSION = '2022-06-28';
+const NOTION_VERSION = '2025-09-03';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
