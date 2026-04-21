@@ -258,32 +258,32 @@
 </div>
 
 <script>
-// ════════════════════════════════════════
-// DB — Netlify Functions → Notion API (팀 공유)
-// ════════════════════════════════════════
-const IDB = { hs:'hs_map', eng:'eng_map' };
-
-// 복합키 생성
-function makeMapKey(code1, code2) {
-  return [code1, code2]
-    .map(v => String(v || '').trim().toUpperCase())
-    .join('|');
-}
-const _cache = { hs:{}, eng:{} };
-
-// Netlify Function 엔드포인트 (상대경로 — 같은 도메인)
-const API = {
-  read: '/api/db-read',
-  write: '/api/db-write'
-};
-
-// Notion에서 최신 DB 로드
 async function _loadFromNotion() {
   const res = await fetch(API.read);
   if (!res.ok) throw new Error(`DB 로드 실패: ${res.status}`);
   const data = await res.json();
-  _cache.hs  = data.hs  || {};
-  _cache.eng = data.eng || {};
+
+  const newHs  = data.hs  || {};
+  const newEng = data.eng || {};
+  const oldHsCount  = Object.keys(_cache.hs).length;
+  const oldEngCount = Object.keys(_cache.eng).length;
+  const newHsCount  = Object.keys(newHs).length;
+  const newEngCount = Object.keys(newEng).length;
+
+  // 기존보다 적게 오면 덮어쓰지 말고 병합만 수행
+  if (oldHsCount > 0 && newHsCount < oldHsCount) {
+    console.warn(`[HS] 데이터 감소 감지: ${oldHsCount} → ${newHsCount}. 병합만 수행.`);
+    _cache.hs = { ..._cache.hs, ...newHs };
+  } else {
+    _cache.hs = newHs;
+  }
+
+  if (oldEngCount > 0 && newEngCount < oldEngCount) {
+    console.warn(`[ENG] 데이터 감소 감지: ${oldEngCount} → ${newEngCount}. 병합만 수행.`);
+    _cache.eng = { ..._cache.eng, ...newEng };
+  } else {
+    _cache.eng = newEng;
+  }
 }
 
 // Notion에 DB 저장
