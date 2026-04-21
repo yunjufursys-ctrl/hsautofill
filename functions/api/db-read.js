@@ -9,7 +9,7 @@ async function fetchPageWithRetry(dbId, token, cursor, maxRetries = 3) {
   if (cursor) body.start_cursor = cursor;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+    const res = await fetch(`https://api.notion.com/v1/data_sources/{id}/query`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
