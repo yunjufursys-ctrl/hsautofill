@@ -1,4 +1,5 @@
-// 안전 중복 자동 정리 — 같은 값으로 중복된 row 중 최신 것만 남기고 archive
+// 안전 중복 자동 정리 — 한 번에 처리할 DB와 최대 건수 제한 가능
+// ?target=hs|eng&mode=preview|execute&limit=30
 const NOTION_VERSION = '2025-09-03';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -52,11 +53,9 @@ async function findDuplicates(dsId, token, valuePropName) {
     if (rows.length <= 1) continue;
     const values = new Set(rows.map(r => r.val));
     if (values.size > 1) {
-      // 값이 다른 중복 → 스킵 (사람이 수동으로 처리)
       skipConflict.push({ key, rows });
       continue;
     }
-    // 값이 같은 중복 → 가장 최근 것만 남기고 나머지 archive
     const sorted = rows.slice().sort((a, b) => a.created.localeCompare(b.created));
     const keep = sorted[sorted.length - 1];
     const remove = sorted.slice(0, -1);
@@ -65,7 +64,7 @@ async function findDuplicates(dsId, token, valuePropName) {
     }
   }
 
-  return { toArchive, skipConflict };
+  return { toArchive, skipConflict, queryPagesUsed: pageCount };
 }
 
 async function archivePage(pageId, token) {
@@ -86,12 +85,24 @@ async function archivePage(pageId, token) {
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  const mode = url.searchParams.get('mode');  // 'preview' 또는 'execute'
+  const mode = url.searchParams.get('mode');
+  const target = url.searchParams.get('target');
+  const limit = parseInt(url.searchParams.get('limit') || '30');
 
   if (mode !== 'preview' && mode !== 'execute') {
     return new Response(JSON.stringify({
-      error: '?mode=preview 또는 ?mode=execute 필요',
-      hint: '먼저 preview로 확인 후, execute로 실제 실행하세요'
+      error: 'mode=preview|execute 필요',
+      usage: '?target=hs|eng&mode=preview|execute&limit=30',
+      example_preview: '?target=hs&mode=preview',
+      example_execute: '?target=hs&mode=execute&limit=30',
+    }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+  if (target !== 'hs' && target !== 'eng') {
+    return new Response(JSON.stringify({
+      error: 'target=hs 또는 target=eng 필요'
     }), {
       status: 400,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -99,55 +110,61 @@ export async function onRequest(context) {
   }
 
   const token = context.env.NOTION_TOKEN;
-  const hsDb  = context.env.NOTION_HS_DB;
-  const engDb = context.env.NOTION_ENG_DB;
+  const dbId = target === 'hs' ? context.env.NOTION_HS_DB : context.env.NOTION_ENG_DB;
+  const propName = target === 'hs' ? 'HS번호' : '품명(영문)';
 
   try {
-    const result = { mode, databases: {} };
+    // Database 조회
+    const dbRes = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': NOTION_VERSION },
+    });
+    const dbData = await dbRes.json();
+    const dataSources = dbData.data_sources || [];
 
-    for (const [label, dbId, propName] of [['HS', hsDb, 'HS번호'], ['ENG', engDb, '품명(영문)']]) {
-      const dbRes = await fetch(`https://api.notion.com/v1/databases/${dbId}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Notion-Version': NOTION_VERSION },
-      });
-      const dbData = await dbRes.json();
-
-      const dbResult = { dataSources: {} };
-      for (const ds of dbData.data_sources || []) {
-        const { toArchive, skipConflict } = await findDuplicates(ds.id, token, propName);
-
-        let archivedCount = 0;
-        const errors = [];
-
-        if (mode === 'execute') {
-          // 실제 archive 실행 (3개씩 병렬 + 350ms 대기)
-          for (let i = 0; i < toArchive.length; i += 3) {
-            const chunk = toArchive.slice(i, i + 3);
-            const results = await Promise.allSettled(
-              chunk.map(item => archivePage(item.id, token))
-            );
-            results.forEach((r, idx) => {
-              if (r.status === 'fulfilled') archivedCount++;
-              else errors.push({ id: chunk[idx].id, error: r.reason.message });
-            });
-            await sleep(350);
-          }
-        }
-
-        dbResult.dataSources[ds.id.slice(0, 8)] = {
-          dataSourceName: ds.name,
-          toArchiveCount: toArchive.length,
-          conflictCount: skipConflict.length,
-          archivedCount: mode === 'execute' ? archivedCount : null,
-          errors: errors.length ? errors : undefined,
-          toArchivePreview: mode === 'preview' ? toArchive.slice(0, 5) : undefined,
-          conflictPreview: mode === 'preview' ? skipConflict.slice(0, 5) : undefined,
-        };
-      }
-      result.databases[label] = dbResult;
+    if (dataSources.length === 0) {
+      throw new Error('Data source 없음');
     }
 
-    return new Response(JSON.stringify(result, null, 2), {
+    // 첫 번째 data source만 처리 (주 data source)
+    const ds = dataSources[0];
+    const { toArchive, skipConflict, queryPagesUsed } = await findDuplicates(ds.id, token, propName);
+
+    // subrequest 예산 계산: 이미 queryPagesUsed개 사용, 1개는 DB 조회
+    // 남은 예산 = 50 - queryPagesUsed - 1 = 약 40~42
+    // 안전하게 limit 만큼만 처리
+    const actualLimit = Math.min(limit, toArchive.length);
+    const toProcess = toArchive.slice(0, actualLimit);
+
+    let archivedCount = 0;
+    const errors = [];
+
+    if (mode === 'execute') {
+      for (const item of toProcess) {
+        try {
+          await archivePage(item.id, token);
+          archivedCount++;
+          await sleep(350);
+        } catch (e) {
+          errors.push({ id: item.id, error: e.message });
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({
+      target,
+      mode,
+      dataSourceName: ds.name,
+      totalDuplicatesFound: toArchive.length,
+      conflictsSkipped: skipConflict.length,
+      processedThisRun: mode === 'execute' ? archivedCount : 0,
+      remainingAfterRun: toArchive.length - archivedCount,
+      errors: errors.length ? errors : undefined,
+      hint: (toArchive.length - archivedCount) > 0
+        ? `아직 ${toArchive.length - archivedCount}건 남음. 다시 같은 URL 호출해서 이어서 처리하세요.`
+        : '✅ 모든 중복 정리 완료!',
+      conflictPreview: mode === 'preview' ? skipConflict.slice(0, 10) : undefined,
+    }, null, 2), {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
