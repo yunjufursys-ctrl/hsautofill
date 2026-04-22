@@ -1053,7 +1053,9 @@ async function runRawConvert() {
         // 품명(영문): 단품코드 + 단품색상 복합키
         if (ea && ic && icC) {
           const engNow = readCell(inner, ea, ss.arr);
-          if (!engNow || isF(engNow) || engNow.trim() === '.') {
+          const trimmed = engNow ? engNow.trim() : '';
+          const isEmptyMarker = /^[.·。\-\s_]*$/.test(trimmed);  // 점, 가운뎃점, 전각마침표, 대시, 공백, 언더스코어만 있으면 빈 값 취급
+          if (!engNow || isF(engNow) || isEmptyMarker) {
             const engKey = makeMapKey(ic, icC);
             if (engDB[engKey]) {
               const si = ss.add(engDB[engKey]);
