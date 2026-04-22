@@ -1,4 +1,4 @@
-// Notion API 2025-09-03 — multi-data-source 대응
+// Notion API 2025-09-03 — multi-data-source 대응 + 명시적 정렬
 const NOTION_VERSION = '2025-09-03';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -33,7 +33,6 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
   throw new Error(`Notion API: ${maxRetries}회 재시도 후 실패`);
 }
 
-// Database에 속한 data source ID들 조회 → 첫 번째(=주 data source) 반환
 async function getPrimaryDataSourceId(dbId, token) {
   const res = await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}`, {
     method: 'GET',
@@ -48,17 +47,15 @@ async function getPrimaryDataSourceId(dbId, token) {
   if (dataSources.length === 0) {
     throw new Error(`Database ${dbId}에 data source 없음`);
   }
-  // 신규 page는 항상 첫 번째 data source에 추가
   const primary = dataSources[0];
-  console.log(`[getPrimaryDataSourceId] DB ${dbId.slice(0,8)} → 주 data source: ${primary.id.slice(0,8)} (${primary.name || 'unnamed'})`);
+  console.log(`[DB ${dbId.slice(0,8)}] 주 data source: ${primary.id.slice(0,8)}`);
   return primary.id;
 }
 
-// 모든 data source query (기존 항목 조회용)
+// 모든 data source에서 기존 항목 조회 (중복 감지용)
 async function getExistingMap(dbId, token, valuePropName) {
   const existing = {};
 
-  // 모든 data source 가져오기
   const res = await fetchWithRetry(`https://api.notion.com/v1/databases/${dbId}`, {
     method: 'GET',
     headers: makeHeaders(token),
@@ -71,7 +68,11 @@ async function getExistingMap(dbId, token, valuePropName) {
     let cursor;
     let pageCount = 0;
     while (true) {
-      const body = { page_size: 100 };
+      const body = {
+        page_size: 100,
+        // ★ 명시적 정렬 — 이게 있어야 전체 순회 가능
+        sorts: [{ timestamp: 'created_time', direction: 'ascending' }]
+      };
       if (cursor) body.start_cursor = cursor;
       const r = await fetchWithRetry(
         `https://api.notion.com/v1/data_sources/${dsId}/query`,
@@ -92,18 +93,22 @@ async function getExistingMap(dbId, token, valuePropName) {
         const val = valueProp?.rich_text?.map(t => t.plain_text).join('').trim();
         if (key && val) existing[key] = val;
       }
-      if (!data.has_more) break;
+      if (!data.has_more || !data.next_cursor) break;
       cursor = data.next_cursor;
       await sleep(350);
+
+      if (pageCount >= 50) {
+        console.warn(`[DS ${dsId.slice(0,8)}] 50페이지 도달, 루프 중단`);
+        break;
+      }
     }
-    console.log(`[getExistingMap] DS ${dsId.slice(0,8)}: ${pageCount}페이지 처리`);
+    console.log(`[DS ${dsId.slice(0,8)}] ${pageCount}페이지`);
   }
 
-  console.log(`[getExistingMap] ${valuePropName}: 합계 ${Object.keys(existing).length}건`);
+  console.log(`[getExistingMap] ${valuePropName}: ${Object.keys(existing).length}건`);
   return existing;
 }
 
-// 새 page 생성 (parent를 data_source_id로)
 async function addPage(dataSourceId, token, titlePropName, valuePropName, extraProps, key, value) {
   const properties = {
     [titlePropName]: { title: [{ text: { content: key } }] },
@@ -153,7 +158,6 @@ export async function onRequestPost(context) {
           toAdd.push([key, data]);
         }
       }
-      // 동시 요청 3개로 제한 + chunk 사이 350ms 대기
       for (let i = 0; i < toAdd.length; i += 3) {
         await Promise.all(
           toAdd.slice(i, i + 3).map(([key, data]) =>
